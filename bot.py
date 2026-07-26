@@ -18,8 +18,6 @@ CHASZMIN_RSS  = "https://chaszmin.com.ua/category/granty-tut/feed/"
 GURT_RSS      = "https://gurt.org.ua/rss/section/grants/"
 PROSTIR_RSS   = "https://www.prostir.ua/?feed=rss2&post_type=grants"
 GETGRANT_RSS  = "https://getgrant.ua/grants-and-funding/?feed=rss2"
-EUPROSTIR_RSS = "https://euprostir.org.ua/opportunities/feed/"
-BCUA_RSS      = "https://www.britishcouncil.org.ua/feed/"
 ISAR_URL      = "https://ednannia.ua/181-contests"
 IRF_URL       = "https://www.irf.ua/grants/contests/"
 UCF_URL       = "https://ucf.in.ua/programs"
@@ -33,7 +31,7 @@ TG_CHANNELS = [
     ("grantovyphishky", "Грантові фішки"),
     ("houseofeurope",   "House of Europe"),
     ("grants_here",     "Гранти та можливості"),  # 20K+ підписників, Connection Agency
-    ("GrantUP",          "GrantUP"),
+    ("GrantUP",          "GrantUP"),               # є гранти, але і мікс-контент — фільтруємо
 ]
 
 # ---------------------------------------------------------------------------
@@ -126,6 +124,12 @@ TG_JUNK_MARKERS = [
     "відбір фахівців",
     # аналітичні пости не про гранти
     "плануєш відкрити бізнес",
+    # @GrantUP специфічний нерелевантний контент
+    "підтримайте нашу роботу підпискою", "підтримайте нашу роботу",
+    "причиною більшої поширеності", "хвороби паркінсона",
+    "стала відомою після відео", "аналітикиня ",
+    "центру досліджень східної",
+    "розповідаємо, чому", "дякуємо, клар",
 ]
 
 
@@ -1010,8 +1014,6 @@ def main():
     run_simple_source(PROSTIR_RSS,  "Громадський Простір — джерело", posted_links)
     run_simple_source(GETGRANT_RSS,  "GetGrant — джерело",           posted_links,
                       analytics_filter=True)
-    run_simple_source(EUPROSTIR_RSS, "EU Prostir — джерело",         posted_links)
-    run_simple_source(BCUA_RSS,      "Британська рада — джерело",    posted_links)
     run_isar(posted_links)
     run_irf(posted_links)
     run_ucf(posted_links, posted_titles)
