@@ -1138,3 +1138,5 @@ https://www.prostir.ua/?grants=vebrozrobnyktsya-dlya-onovlennya-vebsajtu#0
 tg_grantovyphishky_8639
 tg_GrantUP_16186
 https://www.prostir.ua/?grants=victory-hubs-2026-hrantovyj-konkurs-ucare#0
+tg_grants_here_2365
+tg_GrantUP_16187
