@@ -1140,3 +1140,10 @@ tg_GrantUP_16186
 https://www.prostir.ua/?grants=victory-hubs-2026-hrantovyj-konkurs-ucare#0
 tg_grants_here_2365
 tg_GrantUP_16187
+https://www.prostir.ua/?grants=posluhy-z-orhanizatsiji-ta-kompleksnoho-suprovodu-natsionalnoji-konferentsiji-bezmezhni-mozhlyvosti-amputatsiya-reabilitatsiya-sotsialna-adaptatsiya#0
+https://www.prostir.ua/?grants=vidkrytyj-konkurs-iz-vidboru-pidryadnyka-dlya-provedennya-vseukrajinskoho-sotsiolohichnoho-doslidzhennya#0
+tg_grantsua_1593
+tg_grantovyphishky_8643
+tg_grantovyphishky_8642
+tg_grantovyphishky_8641
+tg_grantovyphishky_8640
