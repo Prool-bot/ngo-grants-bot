@@ -1148,3 +1148,6 @@ tg_grantovyphishky_8642
 tg_grantovyphishky_8641
 tg_grantovyphishky_8640
 tg_GrantUP_16188
+https://www.prostir.ua/?grants=vidkrytyj-tender-iz-zakupivli-posluh-fizychnoji-osoby-pidpryjemtsya-iz-suprovodu-nadannya-blahodijnoji-dopomohy-u-vyhlyadi-remontiv-v-zaporizkij-oblasti-za-projektom-mesh#0
+https://www.prostir.ua/?grants=zakupivlya-pobutovoji-tehniky-14#0
+tg_GrantUP_16189
