@@ -1204,3 +1204,5 @@ https://www.prostir.ua/?grants=ekspertka-ekspertna-orhanizatsiya-z-rozrobky-navc
 tg_grantovyphishky_8650
 tg_grantovyphishky_8649
 tg_GrantUP_16198
+tg_houseofeurope_2571
+tg_GrantUP_16199
