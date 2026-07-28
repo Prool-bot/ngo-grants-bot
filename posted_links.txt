@@ -1200,3 +1200,7 @@ tg_GrantUP_16196
 tg_GrantUP_16197
 https://www.prostir.ua/?grants=vidkrytyj-tender-na-multylotovu-zakupivlyu-sensornoho-reabilitatsijnoho-ta-rozvyvalnoho-obladnannya#0
 tg_grants_here_2368
+https://www.prostir.ua/?grants=ekspertka-ekspertna-orhanizatsiya-z-rozrobky-navchalnoji-prohramy-financeher-academy-for-financial-institutions#0
+tg_grantovyphishky_8650
+tg_grantovyphishky_8649
+tg_GrantUP_16198
