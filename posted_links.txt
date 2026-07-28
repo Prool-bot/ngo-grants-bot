@@ -1215,3 +1215,4 @@ tg_grantovyphishky_8651
 http://gurt.org.ua/news/grants/112142/#0
 https://www.prostir.ua/?grants=komertsijni-mozhlyvosti-rozrobka-navchalnoho-kursu-dlya-camino-hotovnist-vodokanaliv-do-sonyachnoji-enerhetyky#0
 tg_grantovyphishky_8653
+tg_grants_here_2369
