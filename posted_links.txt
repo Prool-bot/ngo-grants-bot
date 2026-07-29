@@ -1259,3 +1259,8 @@ tg_grantovyphishky_8658
 tg_GrantUP_16204
 tg_grantovyphishky_8659
 tg_GrantUP_16211
+https://www.prostir.ua/?grants=tender-na-remont-prymischennya-dlya-stvorennya-zero-waste-prostoru-oholoshuje-ho-biznes-shkola-katran-u-mezhah-spilnoji-initsiatyvy-evropejskoho-soyuzu-ta-prohramy-rozvytku-oon-mery-za-ekonomichne-zro#0
+https://www.prostir.ua/?grants=posluhy-fizychnoji-osoby-pidpryjemtsya-z-nadannya-sotsialnoji-dopomohy-v-odeskij-oblasti-za-projektom-dos-proaction#0
+tg_grantovyphishky_8660
+tg_grants_here_2371
+tg_GrantUP_16212
