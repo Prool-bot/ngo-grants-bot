@@ -1255,3 +1255,5 @@ https://www.prostir.ua/?grants=3-dennyj-treninh-z-pidpryjemnytstva-v-uzhhorodi-d
 https://www.prostir.ua/?grants=zakupivlya-drukovanoji-ta-brendovanoji-produktsiji#0
 tg_grantovyphishky_8655
 tg_grantovyphishky_8657
+tg_grantovyphishky_8658
+tg_GrantUP_16204
