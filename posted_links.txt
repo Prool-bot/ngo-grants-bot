@@ -1306,3 +1306,5 @@ tg_grantovyphishky_8664
 tg_GrantUP_16226
 https://www.prostir.ua/?grants=konkurs-iz-zdijsnennya-video-ta-fotozjomky-dlya-projektu-rehab4u#0
 tg_GrantUP_16227
+https://www.prostir.ua/?grants=zakupivlya-posluh-z-druku-robochyh-zoshytiv#0
+https://www.prostir.ua/?grants=tender-na-ukladennya-razovoho-dohovoru-na-postavku-montazh-ta-puskonalahodzhennya-sonyachnyh-elektrostantsij-iz-systemamy-nakopychennya-enerhiji-dlya-dvoh-mtp-vpo-u-mykolajivskij-oblasti#0
