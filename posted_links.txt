@@ -1266,3 +1266,10 @@ tg_grants_here_2371
 tg_GrantUP_16212
 https://ednannia.ua/tryvaiut-hrantovi-konkursy/13661-isar-yednannia-oholoshuie-konkurs-na-uchast-u-navchalnii-prohrami-zi-zmitsnennia-stiikosti-ta-orhanizatsiinoho-rozvytku-zhinochykh-orhanizatsii
 tg_grantsua_1595
+https://www.prostir.ua/?grants=postachannya-bahatofunktsionalnyh-prystrojiv-monitoriv-zaryadnyh-stantsij-ta-ekshn-kamer#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-z-orhanizatsiji-zahodiv-a-same-zabezpechennya-uchasnykiv-zahodiv-harchuvannyamposluh-mobilnoho-harchuvannyapostachannya-hotovyh-stravorhanizatsiya-harchuvannya-3#0
+https://www.prostir.ua/?grants=zakupivlya-posluh-z-perevezennya-2#0
+https://www.prostir.ua/?grants=konkurs-na-nadannya-posluh-z-orhanizatsiji-kava-pauz-u-hromadah-zakarpatskoji-ternopilskoji-ta-rivnenskoji-oblastej#0
+tg_grantovyphishky_8661
+tg_houseofeurope_2572
+tg_GrantUP_16222
