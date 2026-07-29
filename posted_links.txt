@@ -1264,3 +1264,5 @@ https://www.prostir.ua/?grants=posluhy-fizychnoji-osoby-pidpryjemtsya-z-nadannya
 tg_grantovyphishky_8660
 tg_grants_here_2371
 tg_GrantUP_16212
+https://ednannia.ua/tryvaiut-hrantovi-konkursy/13661-isar-yednannia-oholoshuie-konkurs-na-uchast-u-navchalnii-prohrami-zi-zmitsnennia-stiikosti-ta-orhanizatsiinoho-rozvytku-zhinochykh-orhanizatsii
+tg_grantsua_1595
