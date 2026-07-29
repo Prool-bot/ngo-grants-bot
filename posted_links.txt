@@ -1295,3 +1295,5 @@ https://www.prostir.ua/?grants=zakupivlya-transportnyh-posluh-2#0
 tg_houseofeurope_2573
 https://www.prostir.ua/?grants=tender-na-veterynarni-posluhy-u-pryfrontovyh-rehionah#0
 https://www.prostir.ua/?grants=zakupivlya-drukovanoji-ta-brendovanoji-produktsiji-2#0
+https://www.prostir.ua/?grants=vidkrytyj-tender-schodo-zakupivli-tehniky-noutbuky-ta-aksesuary-do-nyh-portatyvni-strumenevi-pryntery-portatyvni-kolorovi-skanery-poverbanky-portatyvni-routery-modemy-komutatory-dzherela-bezper#0
+tg_GrantUP_16225
