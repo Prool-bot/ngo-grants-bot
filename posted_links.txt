@@ -1305,3 +1305,4 @@ tg_grantovyphishky_8665
 tg_grantovyphishky_8664
 tg_GrantUP_16226
 https://www.prostir.ua/?grants=konkurs-iz-zdijsnennya-video-ta-fotozjomky-dlya-projektu-rehab4u#0
+tg_GrantUP_16227
