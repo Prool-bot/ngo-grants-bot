@@ -1315,3 +1315,6 @@ tg_grantovyphishky_8667
 http://gurt.org.ua/news/grants/112153/#0
 https://www.prostir.ua/?grants=hrantova-pidtrymka-dlya-prohodzhennya-kvalifikatsijnoho-ispytu-vidmezhah-projektu-dohlyad-za-ditmy-v-ukrajini-systemnyj-pidhid-zadlya-kraschoho-vidnovlennya#0
 tg_grantovyphishky_8669
+tg_grantovyphishky_8671
+tg_grantovyphishky_8670
+tg_GrantUP_16228
