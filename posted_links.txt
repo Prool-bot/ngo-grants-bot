@@ -1323,3 +1323,10 @@ tg_grants_here_2374
 tg_GrantUP_16229
 https://www.prostir.ua/?grants=zakupivlya-posluh-z-ponovlennya-litsenzij-systemy-kiberbezpeky-dlya-derzhavnoji-sluzhby-ukrajiny-z-pytan-heodeziji-kartohrafiji-ta-kadastru-v-ramkah-projektu-ssha-kiberbezpeka#0
 tg_GrantUP_16230
+https://www.prostir.ua/?grants=komertsijni-mozhlyvosti-burinnya-oblashtuvannya-ta-vvedennya-v-ekspluatatsiyu-3h-sverdlovyn-z-ruchnym-nasosom#0
+https://www.prostir.ua/?grants=vstanovlennya-zahysnoji-plivky-bezpeky-na-vikna-kvartyry#0
+https://www.prostir.ua/?grants=analiz-tsinovyh-propozytsij-na-zakupivlyu-pobutovoji-tehniky#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-z-orhanizatsiji-zahodiv-26#0
+https://www.prostir.ua/?grants=zapyt-tsinovyh-propozytsij-na-postachannya-materialiv-dlya-tvorchosti#0
+https://www.prostir.ua/?grants=vidkrytyj-tender-na-ukladannya-ramkovoji-uhody-na-zakupivlyu-posluh-fizychnoji-osoby-pidpryjemtsya-z-dyzajnu#0
+tg_GrantUP_16231
