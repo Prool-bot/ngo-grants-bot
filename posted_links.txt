@@ -1347,3 +1347,11 @@ tg_grantovyphishky_8672
 tg_GrantUP_16233
 https://www.prostir.ua/?grants=tender-na-zakupivlyu-zasobiv-indyvidualnoho-zahystu-ta-medychnyh-aptechok-ifak#0
 https://www.prostir.ua/?grants=zakupivlya-posluh-zaluchennya-ekspertakomandy-ekspertiv-dlya-rozrobky-aprobatsiji-ta-vprovadzhennya-sertyfikatsijnoji-prohramy-akademiya-treneriv-uwe-hub#0
+https://www.prostir.ua/?grants=tender-na-nadannya-posluh-provedennya-remontnyh-robit-dlya-karjernoho-ta-biznes-habu-vona-u-m-mykolajiv#0
+https://www.prostir.ua/?grants=tender-na-provedennya-onlajn-treninhu-z-dilovoji-ukrajinskoji-movy#0
+https://www.prostir.ua/?grants=audytorska-kompaniya-dlya-provedennya-audytu-projektiv#0
+https://www.prostir.ua/?grants=tryvaje-nabir-na-create-ukraine-ukrajinskyh-profesionaliv-zaproshuyut-povernutysya-z-za-kordonu-i-pratsyuvaty-nad-reformamy#0
+tg_grantovyphishky_8673
+tg_houseofeurope_2574
+tg_grants_here_2376
+tg_GrantUP_16234
