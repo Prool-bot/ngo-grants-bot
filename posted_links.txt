@@ -1363,3 +1363,4 @@ https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-orendy-prymischennya-
 https://www.prostir.ua/?grants=vbo-ukrajinskyj-fond-blahopoluchchya-ditej-provodyt-vidbir-postachalnyka-posluh-iz-tehnichnoho-zabezpechennya-zahodiv#0
 https://www.prostir.ua/?grants=vbo-ukrajinskyj-fond-blahopoluchchya-ditej-provodyt-vidbir-nadavacha-polihrafichnyh-posluh#0
 tg_GrantUP_16235
+tg_GrantUP_16236
