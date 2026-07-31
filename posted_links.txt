@@ -1376,3 +1376,6 @@ tg_GrantUP_16239
 tg_grantsua_1597
 tg_GrantUP_16240
 tg_GrantUP_16241
+https://getgrant.ua/grants-and-funding/nfdu-analiz-hrantodavtsia-istoriia-statystyka-konkursiv/#0
+tg_grants_here_2377
+tg_GrantUP_16242
