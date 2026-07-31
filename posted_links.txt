@@ -1381,3 +1381,5 @@ tg_grants_here_2377
 tg_GrantUP_16242
 https://www.prostir.ua/?grants=zakupivlya-psyholohichnyh-hrupovyh-ta-indyvidualnyh-posluh-v-mezhah-prohramy-reabilitatsiji-rodyn-vijskovyh-kemp#0
 tg_houseofeurope_2575
+https://www.prostir.ua/?grants=tendnr-zakupivlya-dytyachyh-naboriv#0
+https://www.prostir.ua/?grants=tender-zakupivlya-posluh-z-provedennya-oflajn-treninhiv-za-riznoyu-tematykoyu-zhidno-semy-lotiv-provedennya-onlajn-konsultatsij-uchast-v-pitchynhah-ta-otsinyuvannya-biznes-planiv#0
