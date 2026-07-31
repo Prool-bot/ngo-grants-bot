@@ -1379,3 +1379,5 @@ tg_GrantUP_16241
 https://getgrant.ua/grants-and-funding/nfdu-analiz-hrantodavtsia-istoriia-statystyka-konkursiv/#0
 tg_grants_here_2377
 tg_GrantUP_16242
+https://www.prostir.ua/?grants=zakupivlya-psyholohichnyh-hrupovyh-ta-indyvidualnyh-posluh-v-mezhah-prohramy-reabilitatsiji-rodyn-vijskovyh-kemp#0
+tg_houseofeurope_2575
