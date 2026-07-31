@@ -1410,3 +1410,4 @@ tg_grantovyphishky_8678
 tg_GrantUP_16245
 https://www.prostir.ua/?grants=zapyt-tsinovyh-propozytsij-ztsp-posluhy-ekspertaky-z-pytan-zahystu-ditej#0
 https://www.prostir.ua/?grants=posluhy-iz-tehnichnoho-zabezpechennya-zahodiv#0
+tg_GrantUP_16246
