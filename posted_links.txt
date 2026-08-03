@@ -1449,3 +1449,5 @@ tg_grantovyphishky_8695
 tg_GrantUP_16260
 http://gurt.org.ua/news/grants/112165/#0
 tg_GrantUP_16261
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-spetsialistaky-z-pytan-advokatsiji-ta-fasylitatsiji-rozbudovy-potentsialu-2#0
+tg_grants_here_2383
