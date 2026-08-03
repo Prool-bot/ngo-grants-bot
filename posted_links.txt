@@ -1480,3 +1480,4 @@ https://www.prostir.ua/?grants=hrantovyj-konkurs-dlya-pravozahysnyh-orhanizatsij
 tg_grantovyphishky_8696
 tg_GrantUP_16267
 tg_GrantUP_16268
+tg_grantovyphishky_8697
