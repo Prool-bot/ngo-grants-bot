@@ -1447,3 +1447,5 @@ tg_grantovyphishky_8694
 tg_GrantUP_16259
 tg_grantovyphishky_8695
 tg_GrantUP_16260
+http://gurt.org.ua/news/grants/112165/#0
+tg_GrantUP_16261
