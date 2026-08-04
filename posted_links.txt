@@ -1535,3 +1535,4 @@ tg_grantovyphishky_8699
 https://www.prostir.ua/?grants=zapyt-tsinovyh-propozytsij-zpts-na-zakupivlyu-posluhy-ekspertaky-iz-pytan-inklyuziji#0
 https://www.prostir.ua/?grants=zapyt-tsinovyh-propozytsij-ztsp-na-zakupivlyu-posluh-ekspertaky-iz-zapobihannya-seksualnij-ekspluatatsiji-nasylstvu-ta-naruhy-zsen#0
 tg_grantovyphishky_8701
+tg_grantovyphishky_8702
