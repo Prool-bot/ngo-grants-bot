@@ -1519,3 +1519,8 @@ https://www.prostir.ua/?grants=vidbir-novyh-hromad-dlya-uchasti-v-kanadskomu-pro
 tg_grantsua_1600
 tg_grantovyphishky_8698
 tg_GrantUP_16275
+https://www.prostir.ua/?grants=tender-posluhy-prozhyvannya-prozhyvannya-z-harchuvannyam-3#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-fotoobladnannya#0
+https://www.prostir.ua/?grants=tender-na-ukladennya-ramkovoho-dohovoru-na-zakupivlyu-palyvnyh-bryketiv#0
+https://www.prostir.ua/?grants=tender-kompyuterna-ta-ofisna-tehnika#0
+tg_grants_here_2388
