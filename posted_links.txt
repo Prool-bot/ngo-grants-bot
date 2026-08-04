@@ -1487,3 +1487,7 @@ tg_GrantUP_16269
 http://gurt.org.ua/news/grants/112189/#0
 tg_GrantUP_16270
 tg_grants_here_2386
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-vstanovlennya-ta-vyhotovlennya-vstanovlennya-ta-vyhotovlennya-rol-shtor-ta-moskitnyh-sitok#0
+https://www.prostir.ua/?grants=prodovzhennya-tenderu-zakupivlya-posluh-z-provedennya-onlajn-treninhiv-na-temu-kompleksna-prohrama-pidvyschennya-pravovoji-obiznanosti-ta-rivnya-bezpeky#0
+tg_grantsua_1599
+tg_GrantUP_16271
