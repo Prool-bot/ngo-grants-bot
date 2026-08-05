@@ -1565,3 +1565,6 @@ tg_grantsua_1602
 tg_grantovyphishky_8710
 tg_grantovyphishky_8709
 tg_grantovyphishky_8708
+https://www.prostir.ua/?grants=podovzhennya-tenderu-na-zakupivlyu-brendovanoji-produktsiji#0
+https://www.prostir.ua/?grants=zakupivlya-hospodarskyh-tovariv#0
+tg_grantovyphishky_8711
