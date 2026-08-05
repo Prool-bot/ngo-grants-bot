@@ -154,6 +154,42 @@ TG_JUNK_MARKERS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# ХЕШТЕГИ — автоматична категоризація грантів
+# ---------------------------------------------------------------------------
+
+HASHTAG_RULES = [
+    ("#ветерани",   ["ветеран", "ветеранськ", "варто+", "military", "veteran", "впо", "внутрішньо переміщен"]),
+    ("#молодь",     ["молодь", "молодіж", "студент", "youth", "young", "підліток", "школяр"]),
+    ("#культура",   ["культур", "мистецтв", "митц", "кіно", "театр", "музик", "літератур", "heritage",
+                     "creative", "арт", "художн", "architecture", "design", "film"]),
+    ("#медіа",      ["медіа", "журналіст", "ЗМІ", "преса", "видання", "мовлен", "редакц", "journalism",
+                     "media", "broadcasting", "documentary"]),
+    ("#наука",      ["наук", "дослідж", "університет", "академі", "research", "science", "phd",
+                     "стипенді", "fellowship", "аспірант"]),
+    ("#бізнес",     ["бізнес", "підприємц", "МСБ", "МСП", "стартап", "startup", "business",
+                     "підприємств", "фермер", "агро", "виробництв"]),
+    ("#ГО",         ["громадськ організац", "нго", "нко", "го ", " го,", "civil society",
+                     "некомерційн", "благодійн", "фонд підтримки"]),
+    ("#відновлення",["відновлен", "reconstruction", "rebuild", "громад", "реінтеграц", "деокупац"]),
+    ("#освіта",     ["освіт", "навчальн", "школ", "коледж", "education", "training", "викладач"]),
+    ("#екологія",   ["еколог", "довкілл", "environment", "зелен", "клімат", "climate", "energy",
+                     "енергоефектив", "відновлювальн"]),
+]
+
+
+def generate_hashtags(title: str, description: str) -> str:
+    """Визначає категорії гранту і повертає рядок хештегів (максимум 3)."""
+    combined = (title + " " + description).lower()
+    matched = []
+    for hashtag, keywords in HASHTAG_RULES:
+        if any(kw.lower() in combined for kw in keywords):
+            matched.append(hashtag)
+        if len(matched) >= 3:
+            break
+    return " ".join(matched) if matched else ""
+
+
 def is_excluded(text: str) -> bool:
     t = text.lower()
     return (
@@ -341,6 +377,9 @@ def build_simple_message(item_title: str, link: str, description: str,
     if deadline:
         msg += f"📅 <b>Дедлайн:</b> {deadline}\n"
     msg += f"\n{summary}\n\n🔗 <a href=\"{link}\">{source_label}</a>\n"
+    hashtags = generate_hashtags(item_title, description)
+    if hashtags:
+        msg += f"\n{hashtags}"
     return msg
 
 
