@@ -1540,3 +1540,7 @@ tg_grantovyphishky_8703
 tg_grantovyphishky_8704
 https://www.prostir.ua/?grants=zbir-tsinovyh-propozytsij-na-posluhy-z-druku-posibnyka#0
 tg_GrantUP_16286
+http://gurt.org.ua/news/grants/112201/#0
+http://gurt.org.ua/news/grants/112197/#0
+tg_grants_here_2389
+tg_GrantUP_16292
