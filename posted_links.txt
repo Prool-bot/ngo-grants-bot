@@ -1550,3 +1550,5 @@ tg_GrantUP_16293
 https://www.prostir.ua/?grants=posluhy-perevezennya-avtomobil-lehkovyj-vantazhopasazhyrskyj-universal-pasazhyrskyj-z-mistsem-bazuvannya-u-m-dnipro-dnipropetrovskoji-oblasti-prodovzheno#0
 tg_grantovyphishky_8706
 tg_GrantUP_16294
+https://www.prostir.ua/?grants=zakupivlya-ta-dostavka-navchalnoji-literatury-pidruchnykiv-i-materialiv-dlya-navchannya-z-movlennjevoji-terapiji-speech-and-language-therapy-slt-dlya-biblioteky-ivano-frankivskoho-natsionalnoho-me#0
+tg_grantovyphishky_8707
