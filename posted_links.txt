@@ -1547,3 +1547,6 @@ tg_GrantUP_16292
 tg_grantsua_1601
 tg_grantovyphishky_8705
 tg_GrantUP_16293
+https://www.prostir.ua/?grants=posluhy-perevezennya-avtomobil-lehkovyj-vantazhopasazhyrskyj-universal-pasazhyrskyj-z-mistsem-bazuvannya-u-m-dnipro-dnipropetrovskoji-oblasti-prodovzheno#0
+tg_grantovyphishky_8706
+tg_GrantUP_16294
