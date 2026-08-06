@@ -1633,3 +1633,5 @@ https://www.prostir.ua/?grants=postachannya-mistsevoji-sochevytsi-kukurudzyanoji
 https://www.prostir.ua/?grants=posluhy-z-orhanizatsiji-zustrichej-i-konferentsij-u-hotelyah-posluhy-z-orhanizatsiji-ta-provedennya-robochyh-narad-pokraschennya-vyyavlennya-tuberkulozu-yak-neobhidna-peredumova-dlya-prohresu-v-podol#0
 tg_grants_here_2395
 tg_GrantUP_16315
+https://www.prostir.ua/?grants=prodovzhennya-tenderu-na-provedennya-onlajn-treninhu-z-dilovoji-ukrajinskoji-movy#0
+tg_grantovyphishky_8716
