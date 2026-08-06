@@ -1601,3 +1601,4 @@ http://gurt.org.ua/news/grants/112211/#0
 tg_grantovyphishky_8715
 tg_GrantUP_16300
 https://www.irf.ua/contest/tender-na-realizacziyu-regionalnogo-treku-komunikaczijnyh-aktyvnostej-proyektu-impuls/
+tg_GrantUP_16301
