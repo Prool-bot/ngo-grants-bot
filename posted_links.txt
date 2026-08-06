@@ -1602,3 +1602,7 @@ tg_grantovyphishky_8715
 tg_GrantUP_16300
 https://www.irf.ua/contest/tender-na-realizacziyu-regionalnogo-treku-komunikaczijnyh-aktyvnostej-proyektu-impuls/
 tg_GrantUP_16301
+https://www.prostir.ua/?grants=zakupivlya-posluh-z-remontnyh-robit-pidlohy-v-ukrytti#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-na-potochnyj-remont-chastyny-najprostishoho-ukryttya-dnz-poltavske-vysche-mizhrehionalne-profesijne-uchylysche-m-poltava#0
+https://www.prostir.ua/?grants=zbir-komertsijnyh-propozytsij-dlya-provedennya-nezalezhnoho-finansovoho-audytu#0
+tg_grants_here_2393
