@@ -1637,3 +1637,6 @@ https://www.prostir.ua/?grants=prodovzhennya-tenderu-na-provedennya-onlajn-treni
 tg_grantovyphishky_8716
 https://www.prostir.ua/?grants=konkurs-na-zakupivlyu-posluh-nerehulyarnyh-pasazhyrskyh-perevezen-mobilnyh-bryhad-po-m-dnipro-ta-v-mezhah-dnipropetrovskoji-oblasti-2#0
 tg_GrantUP_16316
+https://www.prostir.ua/?grants=kompleksni-posluhy-iz-navchannya-konsultatsijnoho-suprovodu-ta-rozroblennya-paketu-instytutsijnyh-dokumentiv-z-upravlinnya-bezpekovymy-ryzykamy-3#0
+tg_grantsua_1604
+tg_GrantUP_16317
