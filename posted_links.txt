@@ -1626,3 +1626,10 @@ tg_grantsua_1603
 tg_GrantUP_16314
 https://www.prostir.ua/?grants=zakupivlya-materialy-dlya-servisnoho-obsluhovuvannya-system-vodopidhotovky#0
 https://www.prostir.ua/?grants=zapyt-na-otrymannya-tsinovyh-propozytsij-na-lantsyuhovi-molotky-do-fae-pt-300#0
+https://www.prostir.ua/?grants=postachannya-konservovanoho-zelenoho-horoshku-mistsevoho-vyrobnytstva#0
+https://www.prostir.ua/?grants=postachannya-konserviv-z-sardyn-mistsevoho-vyrobnytstva#0
+https://www.prostir.ua/?grants=postachannya-suhoho-moloka-mistsevoho-vyrobnytstva#0
+https://www.prostir.ua/?grants=postachannya-mistsevoji-sochevytsi-kukurudzyanoji-krupy-yachminnoji-krupy-pshenychnoji-krupy-mannoji-ta-perlovoji-krupy#0
+https://www.prostir.ua/?grants=posluhy-z-orhanizatsiji-zustrichej-i-konferentsij-u-hotelyah-posluhy-z-orhanizatsiji-ta-provedennya-robochyh-narad-pokraschennya-vyyavlennya-tuberkulozu-yak-neobhidna-peredumova-dlya-prohresu-v-podol#0
+tg_grants_here_2395
+tg_GrantUP_16315
