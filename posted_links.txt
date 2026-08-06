@@ -1608,3 +1608,8 @@ https://www.prostir.ua/?grants=zbir-komertsijnyh-propozytsij-dlya-provedennya-ne
 tg_grants_here_2393
 https://www.prostir.ua/?grants=konkurs-na-zakupivlyu-posluh-strahuvannya#0
 tg_GrantUP_16302
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-brendovanoho-odyahu-2#0
+https://www.prostir.ua/?grants=zakupivlya-polihrafichnoji-produktsiji-dlya-markuvannya-transportnyh-zasobiv-nalipky-ta-mahnitni-nalipky-dlya-avtomobiliv-procurement-of-printed-materials-for-vehicle-identification-vehicle-stick#0
+tg_houseofeurope_2582
+tg_houseofeurope_2581
+tg_GrantUP_16312
