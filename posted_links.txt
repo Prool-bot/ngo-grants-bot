@@ -1620,3 +1620,7 @@ tg_GrantUP_16313
 https://www.prostir.ua/?grants=tender-na-orhanizatsiyu-ta-provedennya-navchalnyh-zahodiv-dlya-osvitnih-pratsivnykiv-ta-koordynatoriv-osvitnih-tsentriv-dlcsslc-u-mezhah-realizatsiji-projektu#0
 https://www.prostir.ua/?grants=orhanizatsiya-zahodiv-dlya-70-uchasnykiv-v-misti-kyjiv-organization-of-an-event-for-70-participants-in-kyiv#0
 tg_grants_here_2394
+http://gurt.org.ua/news/grants/112220/#0
+https://www.prostir.ua/?grants=poshuk-postachalnykiv-budivelnyh-materialiv-u-harkivskij-poltavskij-ta-dnipropetrovskij-oblastyah#0
+tg_grantsua_1603
+tg_GrantUP_16314
