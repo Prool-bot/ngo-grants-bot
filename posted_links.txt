@@ -1617,3 +1617,6 @@ https://www.prostir.ua/?grants=tender-prodovzheno-kantselyarski-ta-hospodarski-t
 https://www.prostir.ua/?grants=konkurs-z-vidboru-projektnoji-orhanizatsiji-dlya-rozrobky-projektno-koshtorysnoji-dokumentatsiji-pkd-ta-suprovoduprohodzhennya-ekspertyzy-za-potreby-dlya-budivnytstva-hibrydnyh-sonyachnyh-elektro#0
 https://www.prostir.ua/?grants=vidkrytyj-tender-iz-zakupivli-trenazher-lehkovoho-avtomobilya-na-bazi-lehkovoho-avtomobilya-lanos-sens-abo-ekvivalent#0
 tg_GrantUP_16313
+https://www.prostir.ua/?grants=tender-na-orhanizatsiyu-ta-provedennya-navchalnyh-zahodiv-dlya-osvitnih-pratsivnykiv-ta-koordynatoriv-osvitnih-tsentriv-dlcsslc-u-mezhah-realizatsiji-projektu#0
+https://www.prostir.ua/?grants=orhanizatsiya-zahodiv-dlya-70-uchasnykiv-v-misti-kyjiv-organization-of-an-event-for-70-participants-in-kyiv#0
+tg_grants_here_2394
