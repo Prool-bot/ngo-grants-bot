@@ -1606,3 +1606,5 @@ https://www.prostir.ua/?grants=zakupivlya-posluh-z-remontnyh-robit-pidlohy-v-ukr
 https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-na-potochnyj-remont-chastyny-najprostishoho-ukryttya-dnz-poltavske-vysche-mizhrehionalne-profesijne-uchylysche-m-poltava#0
 https://www.prostir.ua/?grants=zbir-komertsijnyh-propozytsij-dlya-provedennya-nezalezhnoho-finansovoho-audytu#0
 tg_grants_here_2393
+https://www.prostir.ua/?grants=konkurs-na-zakupivlyu-posluh-strahuvannya#0
+tg_GrantUP_16302
