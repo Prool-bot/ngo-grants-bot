@@ -1678,3 +1678,6 @@ https://www.prostir.ua/?grants=zapyt-komertsijnyh-propozytsij-na-posluhy-iz-zaku
 tg_grantsua_1606
 tg_grantovyphishky_8721
 tg_GrantUP_16331
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-kantselyarskyh-tovariv-tvorchyh-materialiv-ta-ofisnoho-pryladdya#0
+https://www.prostir.ua/?grants=postachalnykpostachalnyky-dlya-provedennya-zakupivli-kompyuternoji-tehniky-ta-obladnannya-dlya-potreb-projektiv#0
+https://www.prostir.ua/?grants=rekonstruktsiya-prymischen-pid-sotsialnyj-tsentr-budynok-samarytyan-kremenchuk#0
