@@ -1654,3 +1654,4 @@ tg_GrantUP_16327
 https://www.prostir.ua/?grants=rfq-0000-2026-01_nadannya-posluh-z-orhanizatsiji-zahodiv-lohistychnyh-ta-nadannya-inshyh-povyazanyh-posluh-dlya-projektu-anchor#0
 https://www.prostir.ua/?grants=konkurs-na-zaluchennya-komunikatsijnoji-ahentsiji-dlya-rozrobky-ta-realizatsiji-informatsijnoji-kampaniji-z-podolannya-styhmatyzatsiji-lyudej-z-invalidnistyu#0
 tg_grants_here_2396
+tg_GrantUP_16328
