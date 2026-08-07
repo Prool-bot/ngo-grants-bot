@@ -1707,3 +1707,5 @@ https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-z-pidhotovky-ta-perep
 tg_GrantUP_16333
 https://www.prostir.ua/?grants=tender-na-zabezpechennya-medychnym-strahuvannyam-spivrobitnykiv-pact-3#0
 tg_GrantUP_16334
+https://www.prostir.ua/?grants=nabir-na-kursy-klimatychna-polityka-ta-enerhetychnyj-perehid-stratehiji-ta-mehanizmy-dekarbonizatsiji#0
+https://www.prostir.ua/?grants=tender-na-robotyposluhy-z-vidnovlennyamodernizatsijiremontu-objektiv-vodopostachannya-sanitariji-ta-hihijeny-v-zakladah-ohorony-zdorovya-ta-objektah-sotsialnoho-zahystu-m-harkiv-6-lotiv#0
