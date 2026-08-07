@@ -1662,3 +1662,7 @@ tg_grantsua_1605
 tg_GrantUP_16329
 https://www.prostir.ua/?grants=tender-na-provedennya-treninhu-z-fandrejzynhu-ta-napysannya-projektnyh-zayavok-2#0
 https://www.prostir.ua/?grants=tender-z-udoskonalennya-isnuyuchoho-sajtu-kampaniji-2#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-kompyuternoho-obladnannya-ta-orhanizatsijnoji-tehniky#0
+https://www.prostir.ua/?grants=zakupivlya-sensornyh-naboriv-dlya-potrib-irts#0
+tg_grants_here_2397
+tg_GrantUP_16330
