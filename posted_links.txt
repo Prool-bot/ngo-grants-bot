@@ -1723,3 +1723,4 @@ https://chaszmin.com.ua/granty-dlya-biznesu-na-uchast-u-vystavtsi-konferentsiyi-
 tg_houseofeurope_2584
 tg_GrantUP_16337
 tg_grantovyphishky_8726
+tg_GrantUP_16338
