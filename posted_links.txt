@@ -1732,3 +1732,4 @@ tg_grantovyphishky_8730
 https://www.prostir.ua/?grants=tender-iz-zakupivli-portatyvnoji-zaryadnoji-stantsiji#0
 https://www.prostir.ua/?grants=tender-na-zakupivlyu-harchuvannya-uchasnykiv-prohramy-projektu#0
 https://www.prostir.ua/?grants=nabir-dlya-zhinok-na-bezoplatne-navchannya-z-pratsevlashtuvannyam-u-transportnij-sferi#0
+tg_GrantUP_16339
