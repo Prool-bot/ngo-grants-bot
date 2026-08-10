@@ -1763,3 +1763,5 @@ https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluhy-ofisnoho-menedzherak
 https://www.prostir.ua/?grants=postachalnyktsya-posluh-iz-hrafichnoho-dyzajnu#0
 https://www.prostir.ua/?grants=podovzhennya-konkursu-na-posluhy-fahivtsyachyni-iz-podolannya-osvitnih-vtrat#0
 tg_GrantUP_16347
+https://www.prostir.ua/?grants=tender-na-ukladannya-razovyh-dohovoriv-na-remont-zhytlovyh-prymischen-v-m-kremenchuk-poltavskoji-oblasti#0
+tg_grantovyphishky_8741
