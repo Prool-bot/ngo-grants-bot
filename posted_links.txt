@@ -1768,3 +1768,4 @@ tg_grantovyphishky_8741
 tg_grantsua_1608
 https://www.prostir.ua/?grants=vidkrytyj-konkurs-z-vidboru-postachalnykivvyrobnykiv-nazemnyh-robotyzovanyh-kompleksiv-nrk-dlya-evakuatsijnyh-ta-lohistychnyh-potreb#0
 tg_grants_here_2402
+tg_GrantUP_16348
