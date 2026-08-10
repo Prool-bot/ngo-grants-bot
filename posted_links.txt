@@ -1759,3 +1759,7 @@ tg_grantovyphishky_8739
 https://www.prostir.ua/?grants=tender-na-rozrobku-onlajn-instrumentu-samootsinyuvannya-dobrochesnosti-dlya-zakladiv-vyschoji-osvity#0
 https://www.prostir.ua/?grants=zakupivlya-obladnannya-ta-litsenzij-dlya-derzhavnoji-sluzhby-ukrajiny-z-nadzvychajnyh-sytuatsij-dsns#0
 tg_GrantUP_16346
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluhy-ofisnoho-menedzheraky#0
+https://www.prostir.ua/?grants=postachalnyktsya-posluh-iz-hrafichnoho-dyzajnu#0
+https://www.prostir.ua/?grants=podovzhennya-konkursu-na-posluhy-fahivtsyachyni-iz-podolannya-osvitnih-vtrat#0
+tg_GrantUP_16347
