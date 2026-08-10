@@ -1747,3 +1747,5 @@ tg_grantovyphishky_8737
 tg_grantovyphishky_8738
 https://www.prostir.ua/?grants=zapyt-propozytsij-na-postachannya-tovariv-dlya-tvorchosti-i-kantselyarskyh-tovariv-46-sup-30#0
 tg_GrantUP_16343
+https://www.prostir.ua/?grants=povnyj-tsykl-videoprodakshnu-navchalnoho-onlajn-kursu-vklyuchayuchy-tehnichnu-pidhotovku-materialiv-dlya-navchalnoji-platformy-prodovzheno#0
+tg_GrantUP_16344
