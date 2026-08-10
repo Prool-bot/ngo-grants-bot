@@ -1756,3 +1756,6 @@ tg_GrantUP_16345
 https://www.prostir.ua/?grants=protsedura-vyrazhennya-zatsikavlenosti-tehnichna-pidtrymka-v-otsinyuvanni-barjeriv-na-shlyahu-do-efektyvnoho-ohoplennya-posluhamy-ohorony-zdorovya#0
 tg_grantovyphishky_8740
 tg_grantovyphishky_8739
+https://www.prostir.ua/?grants=tender-na-rozrobku-onlajn-instrumentu-samootsinyuvannya-dobrochesnosti-dlya-zakladiv-vyschoji-osvity#0
+https://www.prostir.ua/?grants=zakupivlya-obladnannya-ta-litsenzij-dlya-derzhavnoji-sluzhby-ukrajiny-z-nadzvychajnyh-sytuatsij-dsns#0
+tg_GrantUP_16346
