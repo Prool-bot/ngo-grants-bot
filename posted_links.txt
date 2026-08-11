@@ -1851,3 +1851,6 @@ https://www.prostir.ua/?grants=nadannya-posluh-z-pasazhyrskyh-perevezen-dlya-zab
 https://www.prostir.ua/?grants=nadannya-posluh-z-pasazhyrskyh-perevezen-dlya-zabezpechennya-roboty-mobilnoji-bryhady-v-sumskij-oblasti-povtorno#0
 https://www.prostir.ua/?grants=yak-peretvoryty-zanedbani-budivli-na-sotsialne-zhytlo-bur-zaproshuje-hromady-do-uchasti-v-novomu-etapi-projektu#0
 tg_GrantUP_16364
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-produktiv-harchuvannya-ta-suputnih-tovariv-3#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-postilnyh-komplektiv-ta-postilnoji-bilyzny#0
+tg_grantsua_1611
