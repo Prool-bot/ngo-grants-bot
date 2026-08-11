@@ -1854,3 +1854,4 @@ tg_GrantUP_16364
 https://www.prostir.ua/?grants=tender-na-zakupivlyu-produktiv-harchuvannya-ta-suputnih-tovariv-3#0
 https://www.prostir.ua/?grants=tender-na-zakupivlyu-postilnyh-komplektiv-ta-postilnoji-bilyzny#0
 tg_grantsua_1611
+tg_GrantUP_16365
