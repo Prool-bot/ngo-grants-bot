@@ -1825,3 +1825,6 @@ tg_GrantUP_16361
 https://www.prostir.ua/?grants=zakupivlya-farby-rukavychok-ta-elementiv-zhyvlennya-procurement-of-paint-gloves-and-batteries#0
 tg_GrantUP_16362
 tg_grantovyphishky_8742
+https://www.prostir.ua/?grants=konkurs-na-nadannya-posluh-iz-provedennya-hrupovyh-supervizij#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-tehnichnoho-obladnannya-2#0
+tg_grantovyphishky_8743
