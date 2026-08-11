@@ -1822,3 +1822,5 @@ https://www.prostir.ua/?grants=prohrama-stazhuvannya-dlya-veteraniv-u-hromadah#0
 https://www.prostir.ua/?grants=nabir-na-sertyfikatnu-prohramu-monitorynh-ta-otsinka-rishen-i-projektiv#0
 tg_grantsua_1610
 tg_GrantUP_16361
+https://www.prostir.ua/?grants=zakupivlya-farby-rukavychok-ta-elementiv-zhyvlennya-procurement-of-paint-gloves-and-batteries#0
+tg_GrantUP_16362
