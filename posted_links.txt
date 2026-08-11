@@ -1824,3 +1824,4 @@ tg_grantsua_1610
 tg_GrantUP_16361
 https://www.prostir.ua/?grants=zakupivlya-farby-rukavychok-ta-elementiv-zhyvlennya-procurement-of-paint-gloves-and-batteries#0
 tg_GrantUP_16362
+tg_grantovyphishky_8742
