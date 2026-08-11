@@ -1811,3 +1811,6 @@ https://www.prostir.ua/?grants=zakupivlya-posluh-z-rozrobky-metodolohiji-ta-prov
 tg_GrantUP_16352
 https://www.prostir.ua/?grants=tender-na-zakupivlyu-orhtehniky-dlya-efektyvnoji-diyalnosti-5-kvalifikatsijnyh-tsentriv-u-projektnyh-zakladah-profesijnoji-osvity#0
 tg_GrantUP_16353
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-hotelnyh-posluh-prozhyvannya-harchuvannya-konferents-zal-na-zahodi-ukrajiny#0
+https://getgrant.ua/grants-and-funding/polski-hranty-dlia-ukrainy-shcho-vidkryto-u-serpni-2026/#0
+tg_grants_here_2404
