@@ -1893,3 +1893,4 @@ http://gurt.org.ua/news/grants/112118/#0
 https://www.prostir.ua/?grants=konkursni-torhy-otsinka-tsinovyh-propozytsij-na-zakupivlyu-informatsijno-konsultatsijnyh-posluh-a-same-posluh-z-navchannya-v-anhlijskij-movnij-shkoli#0
 tg_grantsua_1614
 https://www.prostir.ua/?grants=vidkrytyj-tender-na-zakupivlyu-posluh-z-videozjomky-ta-montazhu-videomaterialiv#0
+tg_GrantUP_16381
