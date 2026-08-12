@@ -1872,3 +1872,7 @@ tg_GrantUP_16376
 https://www.prostir.ua/?grants=tender-na-posluhy-z-otsinky-ta-vdoskonalennya-system-upravlinnya-ohs#0
 tg_GrantUP_16377
 tg_grants_here_2407
+https://www.prostir.ua/?grants=zakupivlya-obladnannya-ta-litsenzij-dlya-komunalnoho-pidpryjemstva-kyjivteploenerho#0
+https://www.prostir.ua/?grants=orhanizatsiya-vecheri-dlya-uchasnykiv-zahodu-organization-of-dinner-for-event-participants#0
+https://www.prostir.ua/?grants=zakupivlya-mebliv-10#0
+tg_GrantUP_16378
