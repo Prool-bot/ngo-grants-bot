@@ -1909,3 +1909,4 @@ https://www.prostir.ua/?grants=tender-z-rozroblennya-okremyh-rozdiliv-z-pytan-ro
 tg_GrantUP_16383
 https://www.prostir.ua/?grants=prodovzheno-konkurs-na-vidbir-nadavachiv-konsultatsijnyh-posluh-mizhnarodnoji-ekspertyzy-z-analizu-rejestru-vybortsiv#0
 https://www.prostir.ua/?grants=tender-na-zakupivlyu-mebliv-postilnoji-bilyzny-ta-inventaryu-dlya-oblashtuvannya-prymischen#0
+tg_grantsua_1615
