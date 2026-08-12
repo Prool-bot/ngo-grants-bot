@@ -1876,3 +1876,6 @@ https://www.prostir.ua/?grants=zakupivlya-obladnannya-ta-litsenzij-dlya-komunaln
 https://www.prostir.ua/?grants=orhanizatsiya-vecheri-dlya-uchasnykiv-zahodu-organization-of-dinner-for-event-participants#0
 https://www.prostir.ua/?grants=zakupivlya-mebliv-10#0
 tg_GrantUP_16378
+https://www.prostir.ua/?grants=zakupivlya-brendovanoho-odyahu#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-prodovolchyh-ta-neprodovolchyh-tovariv-a-takozh-tovariv-dlya-naboriv-hidnosti-2#0
+tg_grantsua_1613
