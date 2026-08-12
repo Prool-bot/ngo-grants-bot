@@ -1882,3 +1882,4 @@ tg_grantsua_1613
 https://www.prostir.ua/?grants=konkurs-na-nadannya-posluh-z-orhanizatsiji-ta-provedennya-zahalnonatsionalnoho-reprezentatyvnoho-opytuvannya-ditej-v-ukrajini#0
 https://www.prostir.ua/?grants=konkurs-na-zakupivlyu-navchalnoho-perukarskoho-obladnannya-ta-instrumentiv#0
 https://www.prostir.ua/?grants=vidkrytyj-konkurs-z-vidboru-postachalnykiv-tekstylnyh-vyrobiv-postilna-bilyzna-podushky-matratsy-karematy-dlya-vpo-i-evakuatsijnyh-bryhad#0
+tg_GrantUP_16379
