@@ -254,11 +254,63 @@ def save_title_hash(title: str, posted_titles: set) -> None:
         posted_titles.add(h)
         with open(POSTED_TITLES_FILE, "a", encoding="utf-8") as f:
             f.write(h + "\n")
+    save_keyword_set(title)
 
 
 # ---------------------------------------------------------------------------
 # TELEGRAM
 # ---------------------------------------------------------------------------
+
+POSTED_KEYWORDS_FILE = "posted_keywords.txt"
+
+
+def extract_key_words(title: str) -> frozenset:
+    STOP_WORDS = {
+        "грант", "гранти", "грантів", "грантовий", "грантова", "грантове",
+        "конкурс", "конкурси", "конкурсу", "конкурсний",
+        "програма", "програми", "програму", "проєкт", "проєкти",
+        "для", "на", "та", "і", "й", "від", "до", "з", "із", "по",
+        "що", "як", "або", "чи", "the", "and", "for", "with",
+        "підтримка", "підтримки", "фінансування", "можливість",
+        "оголошує", "оголошення", "запрошує",
+        "ukraine", "україна", "україни", "українських", "українські",
+    }
+    t = title.lower()
+    t = "".join(c if (c.isalnum() or c == " ") else " " for c in t)
+    words = t.split()
+    return frozenset(w for w in words if w not in STOP_WORDS and len(w) > 3)
+
+
+def load_posted_keywords() -> list:
+    try:
+        with open(POSTED_KEYWORDS_FILE, "r", encoding="utf-8") as f:
+            result = []
+            for line in f:
+                line = line.strip()
+                if line:
+                    result.append(frozenset(line.split("|")))
+            return result
+    except FileNotFoundError:
+        return []
+
+
+def save_keyword_set(title: str) -> None:
+    kw = extract_key_words(title)
+    if kw:
+        with open(POSTED_KEYWORDS_FILE, "a", encoding="utf-8") as f:
+            f.write("|".join(sorted(kw)) + "\n")
+
+
+def is_semantic_duplicate(title: str, posted_keywords: list, threshold: int = 2) -> bool:
+    kw = extract_key_words(title)
+    if len(kw) < 2:
+        return False
+    for existing_kw in posted_keywords:
+        common = kw & existing_kw
+        if len(common) >= threshold:
+            return True
+    return False
+
 
 def send_telegram_message(message: str) -> requests.Response:
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -721,7 +773,7 @@ def run_irf(posted_links: set) -> None:
 # УКФ
 # ---------------------------------------------------------------------------
 
-def run_ucf(posted_links: set, posted_titles: set) -> None:
+def run_ucf(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
     soup = fetch_html(UCF_URL)
     if not soup:
         print("[УКФ] Не вдалось завантажити")
@@ -755,7 +807,7 @@ def run_ucf(posted_links: set, posted_titles: set) -> None:
             title = h1.get_text(" ", strip=True) if h1 else ""
             if not title:
                 continue
-            if is_title_duplicate(title, posted_titles) or is_excluded(title):
+            if is_title_duplicate(title, posted_titles) or is_semantic_duplicate(title, posted_keywords) or is_excluded(title):
                 save_posted_link(link)
                 posted_links.add(link)
                 continue
@@ -800,7 +852,7 @@ def run_ucf(posted_links: set, posted_titles: set) -> None:
 # ВЕТЕРАНСЬКИЙ ФОНД
 # ---------------------------------------------------------------------------
 
-def run_veteranfund(posted_links: set, posted_titles: set) -> None:
+def run_veteranfund(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
     contest_links = []
 
     feed = feedparser.parse(VF_RSS)
@@ -859,7 +911,7 @@ def run_veteranfund(posted_links: set, posted_titles: set) -> None:
                 save_posted_link(link)
                 posted_links.add(link)
                 continue
-            if is_title_duplicate(title, posted_titles):
+            if is_title_duplicate(title, posted_titles) or is_semantic_duplicate(title, posted_keywords):
                 print(f"[ВФ] Skipped (дубль): {title[:60]}")
                 save_posted_link(link)
                 posted_links.add(link)
@@ -904,7 +956,7 @@ def run_veteranfund(posted_links: set, posted_titles: set) -> None:
 # УМФ
 # ---------------------------------------------------------------------------
 
-def run_umf(posted_links: set, posted_titles: set) -> None:
+def run_umf(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
     contest_links = []
     for rss_url in [UMF_RSS, "https://uyf.gov.ua/feed/", "https://uyf.gov.ua/news/feed/"]:
         feed = feedparser.parse(rss_url)
@@ -937,7 +989,7 @@ def run_umf(posted_links: set, posted_titles: set) -> None:
                 continue
             h1 = page.find("h1")
             title = h1.get_text(" ", strip=True) if h1 else ""
-            if not title or is_title_duplicate(title, posted_titles) or is_excluded(title):
+            if not title or is_title_duplicate(title, posted_titles) or is_semantic_duplicate(title, posted_keywords) or is_excluded(title):
                 save_posted_link(link)
                 posted_links.add(link)
                 continue
@@ -976,7 +1028,7 @@ def run_umf(posted_links: set, posted_titles: set) -> None:
 # ---------------------------------------------------------------------------
 
 def run_tg_channel(username: str, channel_name: str,
-                   posted_links: set, posted_titles: set) -> None:
+                   posted_links: set, posted_titles: set, posted_keywords: list) -> None:
     from datetime import datetime, timezone, timedelta
     url = f"https://t.me/s/{username}"
     try:
@@ -1041,7 +1093,7 @@ def run_tg_channel(username: str, channel_name: str,
 
         first_line = text.split("\n")[0].strip()[:90] or text[:90]
 
-        if is_title_duplicate(first_line, posted_titles):
+        if is_title_duplicate(first_line, posted_titles) or is_semantic_duplicate(first_line, posted_keywords):
             print(f"[@{username}] Skipped (дубль): {first_line[:60]}")
             save_posted_link(item_key)
             posted_links.add(item_key)
@@ -1077,6 +1129,7 @@ def run_tg_channel(username: str, channel_name: str,
 def main():
     posted_links = load_posted_links()
     posted_titles = load_posted_titles()
+    posted_keywords = load_posted_keywords()
 
     run_chaszmin(posted_links)
     run_simple_source(GURT_RSS,     "ГУРТ — джерело",                posted_links)
@@ -1085,11 +1138,11 @@ def main():
                       analytics_filter=True)
     run_isar(posted_links)
     run_irf(posted_links)
-    run_ucf(posted_links, posted_titles)
-    run_veteranfund(posted_links, posted_titles)
-    run_umf(posted_links, posted_titles)
+    run_ucf(posted_links, posted_titles, posted_keywords)
+    run_veteranfund(posted_links, posted_titles, posted_keywords)
+    run_umf(posted_links, posted_titles, posted_keywords)
     for username, channel_name in TG_CHANNELS:
-        run_tg_channel(username, channel_name, posted_links, posted_titles)
+        run_tg_channel(username, channel_name, posted_links, posted_titles, posted_keywords)
 
 
 if __name__ == "__main__":
