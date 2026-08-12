@@ -1869,3 +1869,5 @@ https://chaszmin.com.ua/do-50-000-dol-granty-dlya-sotsialnyh-pidpryyemtsiv-stanl
 tg_grantovyphishky_8750
 https://www.prostir.ua/?grants=vidkrytyj-konkurs-z-vidboru-pidryadnyka-dlya-vykonannya-kompleksu-robit-z-burinnya-sverdlovyny-jiji-oblashtuvannya-proektuvannya-ta-postachannya-neobhidnyh-materialiv-j-obladnannya#0
 tg_GrantUP_16376
+https://www.prostir.ua/?grants=tender-na-posluhy-z-otsinky-ta-vdoskonalennya-system-upravlinnya-ohs#0
+tg_GrantUP_16377
