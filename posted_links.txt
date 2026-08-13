@@ -1950,3 +1950,6 @@ https://www.prostir.ua/?grants=zakupivlya-tovariv-stil-dlya-nastilnoho-tenisu-na
 tg_GrantUP_16397
 https://www.prostir.ua/?grants=vidbir-pidryadnoji-orhanizatsiji-dlya-projektuvannya-postachannya-vstanovlennya-ta-vvedennya-v-ekspluatatsiyu-hibrydnyh-sonyachnyh-elektrostantsij-potuzhnistyu-20-kvt-dlya-objektiv-krytychnoji-sotsi#0
 https://www.prostir.ua/?grants=hrant-na-rozrobku-projektnyh-propozytsij-schodo-posylennya-roli-hromadskyh-orhanizatsij-za-napryamom-rehionalnoho-vidnovlennya#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-orendy-ofisnyh-prymischen-v-m-dnipro-ta-m-pavlohrad-pereoholoshennya-rental-of-office-space-in-dnipro-and-pavlohrad-reanouncment#0
+https://www.prostir.ua/?grants=podovzhennya-zakupivli-elektronika-pobutova-tehnika-ta-inshe-mebli-pobutovi-ta-suputni-tovary-elektrovelosypedy-skutery#0
+tg_grantsua_1617
