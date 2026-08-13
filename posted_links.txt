@@ -1963,3 +1963,4 @@ https://www.prostir.ua/?grants=vidkrytyj-tender-na-zakupivlyu-posluh-z-rozroblen
 tg_GrantUP_16399
 https://www.prostir.ua/?grants=posluhy-psyholohayni-z-nadannya-pershoji-psyholohichnoji-dopomohy-ppd-dlya-postrazhdalyh-osib-cherez-haryachu-liniyu-pidtrymky-onlajn#0
 tg_grants_here_2412
+tg_GrantUP_16400
