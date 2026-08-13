@@ -1935,3 +1935,6 @@ tg_grants_here_2410
 tg_GrantUP_16394
 https://www.prostir.ua/?grants=zakupivlya-posluh-fizychnoji-osoby-pidpryjemtsya-z-nadannya-sotsialnoji-dopomohy-v-odeskij-oblasti-za-projektom-dosproaction#0
 tg_GrantUP_16395
+https://www.prostir.ua/?grants=tender-na-mizhnarodne-avtobusne-perevezennya-ukrajina-latviya-ukrajina#0
+tg_grantsua_1616
+tg_GrantUP_16396
