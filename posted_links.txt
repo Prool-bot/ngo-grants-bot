@@ -1962,3 +1962,4 @@ https://www.prostir.ua/?grants=vidkrytyj-tender-na-zakupivlyu-posluh-z-pytan-zap
 https://www.prostir.ua/?grants=vidkrytyj-tender-na-zakupivlyu-posluh-z-rozroblennya-projektno-koshtorysnoji-dokumentatsiji-pkd-na-potochnyj-remont-majsterni-mma-zvaryuvannya-v-korpusi-navchalno-vyrobnychyh-majsteren-zakladu-profe#0
 tg_GrantUP_16399
 https://www.prostir.ua/?grants=posluhy-psyholohayni-z-nadannya-pershoji-psyholohichnoji-dopomohy-ppd-dlya-postrazhdalyh-osib-cherez-haryachu-liniyu-pidtrymky-onlajn#0
+tg_grants_here_2412
