@@ -2010,3 +2010,4 @@ tg_GrantUP_16406
 http://gurt.org.ua/news/grants/112291/#0
 https://www.prostir.ua/?grants=tenderna-zakupivlya-sportyvnoho-ta-ihrovoho-inventaryu-2#0
 https://www.prostir.ua/?grants=zapyt-na-nadannya-komertsijnoji-propozytsiji-na-posluhy-vodiya-krosover-klasu-suv#0
+tg_grants_here_2415
