@@ -2027,3 +2027,4 @@ https://www.prostir.ua/?grants=tenderna-zakupivlya-knyzhkovoji-produktsiji-2#0
 tg_GrantUP_16408
 tg_GrantUP_16409
 tg_grantsua_1621
+tg_grantovyphishky_8762
