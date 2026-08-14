@@ -2014,3 +2014,8 @@ tg_grants_here_2415
 https://www.prostir.ua/?grants=tenderna-zakupivlya-materialiv-dlya-majster-klasiv-3#0
 https://www.prostir.ua/?grants=zapyt-propozytsij-na-postachannya-produktiv-ta-kantselyarskyh-tovariv-dlya-ofisu#0
 tg_grantovyphishky_8761
+https://www.prostir.ua/?grants=zakupivlya-transportnyh-posluh-dlya-zabezpechennya-perevezennya-pratsivnykiv-projektu-v-m-harkovi-ta-harkivskij-oblasti#0
+https://www.prostir.ua/?grants=tender-prodovzheno-do-21-08-2026-na-ukladannya-razovyh-dohovoriv-na-remont-zhytlovyh-prymischen-v-kirovohradskij-oblasti#0
+https://www.prostir.ua/?grants=tenderi-na-zakupivlyu-nametiv#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-interaktyvnyh-panelej-ta-mobilnyh-stendiv-dlya-efektyvnoji-diyalnosti-tsentriv-rozvytku-karjery-u-projektnyh-zakladah-profesijnoji-osvity#0
+tg_GrantUP_16407
