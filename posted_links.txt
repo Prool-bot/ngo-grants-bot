@@ -2000,3 +2000,4 @@ tg_grants_here_2414
 tg_GrantUP_16405
 https://www.prostir.ua/?grants=vidbir-postachalnyka-dlya-postachannya-montazhu-ta-vvedennya-v-ekspluatatsiyu-rezervnyh-dyzelnyh-heneratoriv-potuzhnistyu-do-150-kvt-dlya-objektiv-krytychnoji-infrastruktury-vodopostachannya#0
 https://www.prostir.ua/?grants=konsultantka-z-pytan-rozrobky-sop-ta-avtomatyzatsiji-protsesiv#0
+tg_grantsua_1620
