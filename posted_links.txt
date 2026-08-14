@@ -1980,3 +1980,7 @@ https://www.prostir.ua/?grants=provedennya-zakupivli-robit-z-rozrobky-projektno-
 https://www.prostir.ua/?grants=rozrobka-pr-stratehiji-ta-realizatsiya-reklamnoji-kampaniji-dlya-myrnoji-shkoly#0
 https://www.prostir.ua/?grants=tender-na-zakupivlyu-lohistychnyh-posluh-dlya-zabezpechennya-provedennya-treninhiv-iz-pidvyschennya-kvalifikatsiji-pedahohichnyh-i-naukovo-pedahohichnyh-pratsivnykivts-schodo-protydiji-tuberkulozu-t#0
 tg_GrantUP_16401
+https://www.prostir.ua/?grants=prodovzhennya-zakupivli-obladnannya-dlya-kursu-elektromontazhnyk-budivelnyh-i-montazhnyh-robit#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-ortopedychnyh-stiltsiv-v-ramkah-projektu-nadannya-intehrovanyh-posluh-iz-zahystu-ditej-ta-sotsialnoji-pidtrymky-u-viddalenyh-rajonah-sumskoji-oblasti#0
+https://www.prostir.ua/?grants=zakupivlya-trenerskyh-posluh-dva-mizhnarodnyh-nadavacha-trenerskyh-posluh-dlya-provedennya-tot-na-osnovi-prepare-for-leaving-care-practice-guidance#0
+tg_GrantUP_16402
