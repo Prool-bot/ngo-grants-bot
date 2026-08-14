@@ -1993,3 +1993,7 @@ tg_GrantUP_16403
 https://www.prostir.ua/?grants=konkursna-zakupivlya-6-posluh-z-orhanizatsiji-ta-provedennya-seriji-tematychnyh-ahrarnyh-treninhiv-dlya-fermeriv-ta-domohospodarst#0
 tg_grantsua_1619
 tg_GrantUP_16404
+https://www.prostir.ua/?grants=hrant-na-vprovadzhennya-mobilnoji-molodizhnoji-roboty-vid-proon#0
+https://www.prostir.ua/?grants=hrant-na-zaluchennya-molodi-do-rozvytku-hromad#0
+https://www.prostir.ua/?grants=postachannya-noutbukiv#0
+tg_grants_here_2414
