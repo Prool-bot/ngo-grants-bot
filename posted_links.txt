@@ -2041,3 +2041,9 @@ tg_GrantUP_16411
 tg_grantovyphishky_8770
 tg_grantovyphishky_8772
 tg_grantovyphishky_8771
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-lohistychnyh-posluh-dlya-zabezpechennya-provedennya-treninhiv-dlya-fahivtsiv-pervynnoji-medychnoji-lanky-osoblyvosti-konsultuvannya-ditej-pidlitkiv-ta-jihnih-simej-yakyh-torknu#0
+https://www.prostir.ua/?grants=ukrajinskyj-fond-blahopoluchchya-ditej-provodyt-vidbir-postachalnykapostachalnykiv-kantselyarskyh-tovariv-2#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-neprodovolchyh-tovariv-dlya-oblashtuvannya-mtp-v-m-harkiv#0
+https://www.prostir.ua/?grants=prodovzheno-tender-na-zakupivlyu-posluh-iz-provedennya-praktychnoho-treninhu-z-bezpeky-pid-chas-dronovyh-zahroz#0
+https://www.prostir.ua/?grants=prodovzheno-kompleksni-posluhy-iz-navchannya-konsultatsijnoho-suprovodu-ta-rozroblennya-paketu-instytutsijnyh-dokumentiv-z-upravlinnya-bezpekovymy-ryzykamy#0
+tg_GrantUP_16412
