@@ -2047,3 +2047,6 @@ https://www.prostir.ua/?grants=tender-na-zakupivlyu-neprodovolchyh-tovariv-dlya-
 https://www.prostir.ua/?grants=prodovzheno-tender-na-zakupivlyu-posluh-iz-provedennya-praktychnoho-treninhu-z-bezpeky-pid-chas-dronovyh-zahroz#0
 https://www.prostir.ua/?grants=prodovzheno-kompleksni-posluhy-iz-navchannya-konsultatsijnoho-suprovodu-ta-rozroblennya-paketu-instytutsijnyh-dokumentiv-z-upravlinnya-bezpekovymy-ryzykamy#0
 tg_GrantUP_16412
+tg_grantovyphishky_8775
+tg_grantovyphishky_8774
+tg_grantovyphishky_8773
