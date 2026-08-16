@@ -2060,3 +2060,4 @@ tg_grantovyphishky_8780
 https://www.prostir.ua/?grants=tender-na-provedennya-zakupivli-palyvnyh-bryketiv-dlya-hromad-hersonskoji-oblasti-3#0
 tg_GrantUP_16414
 tg_grantovyphishky_8782
+tg_grantovyphishky_8783
