@@ -63,3 +63,4 @@ eldp|endangered|документування|загрозою|зникнення
 fellowship|harvard|institute|program|radcliffe|стипендіальна
 ветерана|відк|громадська|країна|меморіальної|платформи|спілка
 foundation|talents|людей|межах|прогр|талановитих
+batch|mission|possible|tech|двох|замість|запускає|набір|оновлений|стартапів
