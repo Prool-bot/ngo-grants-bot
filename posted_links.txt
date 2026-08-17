@@ -2076,3 +2076,9 @@ tg_grantsua_1622
 tg_GrantUP_16423
 tg_grants_here_2417
 tg_GrantUP_16424
+https://www.prostir.ua/?grants=zapyt-komertsijnyh-propozytsij-na-zakupivlyu-posluh-vidpovidalnoho-zberihannya-vantazhu-po-oblastyah#0
+https://www.prostir.ua/?grants=ekspertni-posluhy-z-pidhotovky-ta-provedennya-4h-dvodennyh-oflajn-treninhiv-fandrejzynh-projektnyj-menedzhment-ta-rozvytok-hromadskyh-initsiatyv-u-kyjevi-poltavi-mykolajevi-ta-ivano-frankivsku-dlya#0
+https://www.prostir.ua/?grants=postachannya-ta-dostavka-silskohospodarskyh-rukaviv#0
+https://www.prostir.ua/?grants=zbir-komertsijnyh-propozytsij-z-nadannya-posluh-pasazhyrski-perevezennya-dlya-zabezpechennya-polovyh-humanitarnyh-misij-v-hersonskij-oblasti#0
+https://www.prostir.ua/?grants=vidbir-postachalnyka-dlya-postachannya-dostavky-vstanovlennya-ta-vvedennya-v-ekspluatatsiyu-40-komplektiv-mobilnyh-sanitarnyh-wash-moduliv#0
+tg_GrantUP_16425
