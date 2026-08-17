@@ -2071,3 +2071,6 @@ tg_grantovyphishky_8786
 https://www.prostir.ua/?grants=nabir-na-navchalnu-prohramu-ukrajinskoji-myrotvorchoji-shkoly-2026-2027#0
 tg_GrantUP_16418
 http://gurt.org.ua/news/grants/112309/#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-tehniky-z-postavkoyu-u-m-kryvyj-rih#0
+tg_grantsua_1622
+tg_GrantUP_16423
