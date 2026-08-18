@@ -988,7 +988,7 @@ def run_umf(posted_links: set, posted_titles: set, posted_keywords: list) -> Non
                     if href not in contest_links:
                         contest_links.append(href)
     if not contest_links:
-        print("[УМФ] Конкурси не знайдено (JS або заблоковано)")
+        pass  # УМФ недоступний через JS-рендеринг
         return
     print(f"[УМФ] Знайдено {len(contest_links)} конкурсів")
     for link in contest_links[:10]:
