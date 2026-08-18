@@ -2147,3 +2147,4 @@ tg_GrantUP_16439
 https://www.prostir.ua/?grants=zakupivlya-na-ukladannya-dohovoru-postachannya-malotonnazhnyh-vantazhnyh-avtomobiliv-buvshyh-u-vykorystanni-dlya-humanitarnyh-tsentriv-v-m-sumy-ta-m-konotop#0
 https://www.prostir.ua/?grants=tender-iz-multilotovoji-zakupivli-pobutovoji-tehniky#0
 https://www.prostir.ua/?grants=hender-zed-shukaje-nadavacha-posluh-dlya-hlybynnoho-doslidzhennya-tsilovyh-audytorij-sotsmerezh#0
+tg_GrantUP_16448
