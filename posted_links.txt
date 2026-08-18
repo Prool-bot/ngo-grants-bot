@@ -2164,3 +2164,7 @@ https://www.prostir.ua/?grants=zapyt-na-zakupivlyu-posluh-eksperta-ky-iz-suprovo
 tg_grantovyphishky_8795
 tg_GrantUP_16450
 https://www.prostir.ua/?grants=nadavach-posluh-dlya-navchannya-buhhaltera-z-pytan-finansovoho-obliku-zvitnosti-ta-dokumentoobihu-v-neprybutkovyh-orhanizatsiyah#0
+https://www.prostir.ua/?grants=tender-na-nadannya-posluh-z-psyhosotsialnoji-pidtrymky-ditej-yaki-prozhyvayut-v-instytutsijnyh-zakladah#0
+https://www.prostir.ua/?grants=tender-na-nadannya-posluh-z-psyhosotsialnoji-pidtrymky-dityam-yaki-prozhyvayut-u-dytyachyh-budynkah-simejnoho-typu-dbst-ta-dlya-batkiv-vyhovateliv#0
+https://www.prostir.ua/?grants=konkurs-subhrantiv-dlya-media-ta-mediaorhanizatsij-na-vysvitlennya-tem-tot-vymushenoho-peremischennya-ta-reintehratsiji#0
+tg_grantsua_1623
