@@ -2151,3 +2151,5 @@ tg_GrantUP_16448
 http://gurt.org.ua/news/grants/112323/#0
 https://www.prostir.ua/?grants=zakupivlya-kompyuternoho-obladnannya-2#0
 https://www.prostir.ua/?grants=zakupivlya-posluh-z-rozrobky-dvomovnoji-vebplatformy#0
+https://www.prostir.ua/?grants=zakupivlya-sutsilnometalevoho-vantazhopasazhyrskoho-furhonu#0
+tg_GrantUP_16449
