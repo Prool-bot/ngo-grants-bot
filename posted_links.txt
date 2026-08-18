@@ -2136,3 +2136,4 @@ https://www.prostir.ua/?grants=konkurs-na-orhanizatsiyu-ta-materialno-tehnichne-
 https://www.prostir.ua/?grants=podovzheno-termin-projomu-propozytsij-schodo-ukladennya-dohovoriv-na-zakupivlyu-portatyvnyh-zaryadnyh-prystrojiv-i-zaryadnyh-stantsij-nemedychnoho-obladnannya-kompyuternoji-tehniky-ofisnoho-ta-supu#0
 tg_GrantUP_16431
 tg_grantovyphishky_8793
+tg_GrantUP_16438
