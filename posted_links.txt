@@ -2203,3 +2203,6 @@ https://www.prostir.ua/?grants=vidkrytyj-tender-na-zakupivlyu-posluh-fizychnoji-
 https://www.prostir.ua/?grants=tender-vprovadzhennya-systemy-tsyfrovoho-modelyuvannya-merezhi-tsentralizovanoho-teplopostachannya-komunalnoho-pidpryjemstva-vinnytsyamiskteploenerho#0
 tg_grants_here_2423
 tg_GrantUP_16458
+https://www.prostir.ua/?grants=pidryadnyky-dlya-montazhu-promyslovoji-systemy-nakopychennya-enerhiji#0
+https://www.prostir.ua/?grants=postachalnyk-lohistychnyh-posluh-dlya-orhanizatsiji-vidryadzhennya-volonteriv#0
+tg_grantsua_1624
