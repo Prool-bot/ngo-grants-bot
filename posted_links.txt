@@ -2222,3 +2222,8 @@ https://www.prostir.ua/?grants=prodovzhennya-tenderu-na-zakupivlyu-posluh-kejs-m
 https://www.prostir.ua/?grants=prodovzhennya-tenderu-na-zakupivlyu-posluh-yurystiv-dlya-tsentriv-pidtrymky-simji-3#0
 https://www.prostir.ua/?grants=tender-vprovadzhennya-systemy-tsyfrovoho-modelyuvannya-merezhi-tsentralizovanoho-teplopostachannya-komunalnoho-pidpryjemstva-vinnytsyamiskteploenerho-2#0
 tg_grantovyphishky_8801
+https://www.prostir.ua/?grants=posluhy-sekretaryaky-asystentaky-konsortsiumu#0
+tg_grantovyphishky_8804
+tg_grantovyphishky_8803
+tg_grantovyphishky_8802
+tg_grants_here_2424
