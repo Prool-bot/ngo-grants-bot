@@ -2198,3 +2198,4 @@ https://www.prostir.ua/?grants=oholoshennya-pro-provedennya-tenderu-na-vyhotovle
 tg_grants_here_2422
 tg_GrantUP_16456
 https://www.prostir.ua/?grants=tender-zabezpechennya-prozhyvannya-ta-harchuvannya-uchasnykiv-navchannya-2#0
+tg_GrantUP_16457
