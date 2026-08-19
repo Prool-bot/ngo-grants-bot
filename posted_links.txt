@@ -2201,3 +2201,5 @@ https://www.prostir.ua/?grants=tender-zabezpechennya-prozhyvannya-ta-harchuvanny
 tg_GrantUP_16457
 https://www.prostir.ua/?grants=vidkrytyj-tender-na-zakupivlyu-posluh-fizychnoji-osoby-pidpryjemtsya-z-koordynatsiji-vprovadzhennya-rishen-u-sferi-zelenoji-enerhetyky#0
 https://www.prostir.ua/?grants=tender-vprovadzhennya-systemy-tsyfrovoho-modelyuvannya-merezhi-tsentralizovanoho-teplopostachannya-komunalnoho-pidpryjemstva-vinnytsyamiskteploenerho#0
+tg_grants_here_2423
+tg_GrantUP_16458
