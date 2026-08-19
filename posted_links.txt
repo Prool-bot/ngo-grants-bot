@@ -2192,3 +2192,7 @@ tg_grantovyphishky_8797
 tg_GrantUP_16455
 tg_grantovyphishky_8798
 https://www.prostir.ua/?grants=zaproshennya-do-uchasti-u-protsesi-zakupivli-itv-2026-003-na-ukladannya-dohovoru-postavky-avtomobilya-dlya-sotsialnoho-transportuvannya#0
+https://www.prostir.ua/?grants=oholoshennya-na-zakupivlyu-posluh-z-orhanizatsiji-zahodiv-zabezpechennya-prydbannya-transportnyh-kvytkiv-taabo-pokryttya-transportnyh-vytrat#0
+https://www.prostir.ua/?grants=poperednij-vidbir-postachalnykiv-posluh-z-orhanizatsiji-kava-pauz-ta-zabezpechennya-pytnoyu-vodoyu#0
+https://www.prostir.ua/?grants=oholoshennya-pro-provedennya-tenderu-na-vyhotovlennya-ta-postachannya-brendovanoji-produktsiji-ryukzakiv-ta-zhyletiv-z-nanesennyam-lohotypu-tatohub#0
+tg_grants_here_2422
