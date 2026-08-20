@@ -2287,3 +2287,8 @@ tg_grants_here_2426
 https://www.prostir.ua/?grants=rozvytok-dostupnyh-kulturnyh-posluh-i-produktiv-zpz#0
 https://www.prostir.ua/?grants=zapyt-komertsijnoji-propozytsiji-na-postachannya-it-tovariv-46-sup-57#0
 tg_GrantUP_16473
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-iz-provedennya-yakisnoho-doslidzhennya-u-sferi-seksualnoho-ta-reproduktyvnoho-zdorovya-i-prav-srzp#0
+https://www.prostir.ua/?grants=zapyt-na-propozytsiji-rfp-079-vyrobnytstvo-animatsijnoho-filmu-dlya-ditej-pro-holodomor-v-ukrajini#0
+tg_grantovyphishky_8818
+tg_grantovyphishky_8817
+tg_grantovyphishky_8816
