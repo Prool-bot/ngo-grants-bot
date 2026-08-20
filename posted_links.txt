@@ -2267,3 +2267,8 @@ tg_grants_here_2425
 tg_GrantUP_16470
 tg_GrantUP_16471
 https://www.prostir.ua/?grants=tender-na-postachannya-ta-vstanovlennya-hibrydnoji-sonyachnoji-elektrostantsiji#0
+https://www.prostir.ua/?grants=zakupivlya-bronovanyh-avtomobiliv-vysokoji-prohidnosti-itb-2026-713#0
+https://www.prostir.ua/?grants=zakupivlya-posluh-kompleksnoho-doslidzhennya-informatsijnoji-dostupnosti-u-pyaty-sferah-nadannya-posluh-dlya-osib-z-invalidnistyu-2#0
+https://www.prostir.ua/?grants=posluhy-pasazhyrskyh-perevezen-m-kyjiv-i-dnipro#0
+https://www.prostir.ua/?grants=postachalnyka-produktiv-harchuvannya-ta-hospodarskyh-tovariv-m-kyjiv-i-vyshneve#0
+https://www.prostir.ua/?grants=postachalnyka-kantselyarskyh-tovariv-ta-materialiv-dlya-tvorchosti-m-kyjiv-i-vyshneve#0
