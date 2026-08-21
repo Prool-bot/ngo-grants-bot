@@ -2326,3 +2326,5 @@ https://www.prostir.ua/?grants=zapyt-tsinovyh-propozytsij-zakupivlya-vymiryuvaln
 tg_grantsua_1628
 tg_GrantUP_16485
 tg_grants_here_2428
+https://www.prostir.ua/?grants=tender-z-nadannya-posluh-treneratrenerky-dlya-provedennya-treninhiv-z-profilaktyky-vil-dlya-tsilovyh-hromad-mykolajivskoji-hersonskoji-ta-odeskoji-oblastej#0
+tg_GrantUP_16492
