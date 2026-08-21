@@ -2318,3 +2318,5 @@ tg_grants_here_2427
 tg_GrantUP_16476
 https://www.prostir.ua/?grants=tender-na-ukladannya-ramkoho-dohovoru-na-zakupivlyu-pakuvalnyh-skladskyh-ta-hospodarskyh-vytratnyh-materialiv#0
 https://www.prostir.ua/?grants=konkurs-na-zakupivlyu-sonyanoji-elektrostantsiji#0
+http://gurt.org.ua/news/grants/112350/#0
+tg_GrantUP_16483
