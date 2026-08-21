@@ -2368,3 +2368,5 @@ https://www.prostir.ua/?grants=zasoby-indyvidualnoho-zahystu-rfq-2026-001#0
 tg_GrantUP_16497
 tg_grantsua_1630
 tg_grants_here_2430
+tg_grantovyphishky_8825
+tg_grantovyphishky_8824
