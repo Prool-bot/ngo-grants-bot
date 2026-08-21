@@ -2336,3 +2336,4 @@ tg_GrantUP_16493
 https://www.prostir.ua/?grants=tender-na-zakupivlyu-medychnoho-obladnannya-ta-medychnyh-vyrobiv#0
 https://www.prostir.ua/?grants=ofisni-mebli-arhivni-stelazhi#0
 tg_grants_here_2429
+https://www.prostir.ua/?grants=rozpochato-nabir-hromadskyh-orhanizatsij-dlya-uchasti-u-prohrami-indyvidualnyh-kiberaudytiv#0
