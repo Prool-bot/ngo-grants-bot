@@ -2325,3 +2325,4 @@ https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluhy-z-potochnoho-remontu
 https://www.prostir.ua/?grants=zapyt-tsinovyh-propozytsij-zakupivlya-vymiryuvalnoho-obladnannya-dlya-enerhoaudytu-energy-audit-measuring-equipment-procurement#0
 tg_grantsua_1628
 tg_GrantUP_16485
+tg_grants_here_2428
