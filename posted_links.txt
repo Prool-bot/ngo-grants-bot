@@ -2333,3 +2333,6 @@ https://www.prostir.ua/?grants=tender-z-nadannya-posluh-z-provedennya-bazovoho-t
 https://www.prostir.ua/?grants=tender-na-ukladennya-dohovoru-na-zakupivlyu-hihijenichnyh-ta-ne-prodovolchyh-naboriv-ipg-2026-750-rfp#0
 https://www.prostir.ua/?grants=nadannya-posluh-supervizoraky-kejs-menedzheriv#0
 tg_GrantUP_16493
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-medychnoho-obladnannya-ta-medychnyh-vyrobiv#0
+https://www.prostir.ua/?grants=ofisni-mebli-arhivni-stelazhi#0
+tg_grants_here_2429
