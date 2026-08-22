@@ -1,13 +1,16 @@
 import os
 import re
+import json
 import time
 import hashlib
 import feedparser
 import requests
 from bs4 import BeautifulSoup
+import google.generativeai as genai
 
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 POSTED_LINKS_FILE = "posted_links.txt"
 POSTED_TITLES_FILE = "posted_titles.txt"
 
@@ -259,13 +262,13 @@ def is_title_duplicate(title: str, posted_titles: set) -> bool:
     return title_hash(title) in posted_titles
 
 
-def save_title_hash(title: str, posted_titles: set) -> None:
+def save_title_hash(title: str, posted_titles: set, posted_keywords: list) -> None:
     h = title_hash(title)
     if h not in posted_titles:
         posted_titles.add(h)
         with open(POSTED_TITLES_FILE, "a", encoding="utf-8") as f:
             f.write(h + "\n")
-    save_keyword_set(title)
+    save_keyword_set(title, posted_keywords)
 
 
 # ---------------------------------------------------------------------------
@@ -305,9 +308,10 @@ def load_posted_keywords() -> list:
         return []
 
 
-def save_keyword_set(title: str) -> None:
+def save_keyword_set(title: str, posted_keywords: list) -> None:
     kw = extract_key_words(title)
     if kw:
+        posted_keywords.append(kw)
         with open(POSTED_KEYWORDS_FILE, "a", encoding="utf-8") as f:
             f.write("|".join(sorted(kw)) + "\n")
 
@@ -334,8 +338,206 @@ def send_telegram_message(message: str) -> requests.Response:
 
 
 # ---------------------------------------------------------------------------
+# AI-ПЕРЕФОРМАТУВАННЯ (Gemini)
+# ---------------------------------------------------------------------------
+
+AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гранти для українських НГО.
+Розбери пост на структуровані секції за схемою нижче. Правила:
+- Прибери рекламні хвости, заклики підписатись на джерело, зайвий емодзі-спам
+- Заповнюй лише ті поля, для яких є дані в оригінальному тексті — інакше null.
+  НІКОЛИ не вигадуй і не додумуй факти
+- Списки (funding, audience, supported, evaluation_criteria,
+  application_requirements) — короткі пункти без початкового "•", без крапки в кінці
+- extra_links — тільки URL, які буквально присутні в оригінальному тексті
+  (наприклад окрема сторінка з умовами, форма подання, критерії відбору),
+  НЕ включай туди основне посилання на джерело — воно додається окремо
+- intro — 1-2 речення контексту (хто дає грант, на що), без дублювання title
+- Стиль: стисло, по суті, українською, без markdown-розмітки (без **, ##,```)"""
+
+AI_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "intro": {"type": "string", "nullable": True},
+        "deadline": {"type": "string", "nullable": True},
+        "geography": {"type": "string", "nullable": True},
+        "funding": {"type": "array", "items": {"type": "string"}, "nullable": True},
+        "audience": {"type": "array", "items": {"type": "string"}, "nullable": True},
+        "audience_excluded": {"type": "string", "nullable": True},
+        "supported": {"type": "array", "items": {"type": "string"}, "nullable": True},
+        "evaluation_criteria": {"type": "array", "items": {"type": "string"}, "nullable": True},
+        "application_requirements": {"type": "array", "items": {"type": "string"}, "nullable": True},
+        "decision_date": {"type": "string", "nullable": True},
+        "notes": {"type": "string", "nullable": True},
+        "extra_links": {
+            "type": "array",
+            "nullable": True,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "label": {"type": "string"},
+                    "url": {"type": "string"},
+                },
+                "required": ["label", "url"],
+            },
+        },
+    },
+    "required": ["title", "intro"],
+}
+
+_ai_model = None
+
+def _get_ai_model():
+    global _ai_model
+    if _ai_model is None:
+        genai.configure(api_key=GEMINI_API_KEY)
+        _ai_model = genai.GenerativeModel(
+            "gemini-2.5-flash-lite",
+            system_instruction=AI_SYSTEM_PROMPT,
+            generation_config={
+                "response_mime_type": "application/json",
+                "response_schema": AI_RESPONSE_SCHEMA,
+            },
+        )
+    return _ai_model
+
+def reformat_post(raw_text: str, source: str) -> dict:
+    """Переформатовує пост через Gemini. При будь-якій помилці — fallback
+    на плоский варіант (тільки intro = оригінальний текст), щоб пост усе
+    одно опублікувався, нехай і без розбивки на секції."""
+    fallback = {"title": None, "intro": raw_text, "deadline": None,
+                "geography": None, "funding": None, "audience": None,
+                "audience_excluded": None, "supported": None,
+                "evaluation_criteria": None, "application_requirements": None,
+                "decision_date": None, "notes": None, "extra_links": None}
+    if not GEMINI_API_KEY:
+        return fallback
+    try:
+        model = _get_ai_model()
+        resp = model.generate_content(
+            f"Оригінальний пост (джерело: {source}):\n---\n{raw_text}\n---"
+        )
+        data = json.loads(resp.text)
+        fallback.update({k: v for k, v in data.items() if v is not None})
+        return fallback
+    except Exception as e:
+        print(f"[AI reformat failed] {source}: {e}")
+        return fallback
+
+def _bullets(items) -> str:
+    return "\n".join(f"• {it}" for it in items) if items else ""
+
+class _SkippedDuplicate:
+    """Легкий сурогат requests.Response для випадку, коли пост відсіявся
+    на stage 2 (дублікат після AI-нормалізації). status_code=200 навмисно —
+    виклики-джерела й далі роблять save_posted_link(link) і не намагаються
+    обробити цей URL повторно на наступному прогоні cron."""
+    status_code = 200
+    text = "skipped: duplicate after AI normalization"
+
+
+def build_and_send(emoji: str, title: str, link: str, description: str,
+                    source_label: str, posted_titles: set, posted_keywords: list,
+                    deadline_hint: str = "") -> requests.Response:
+    """Єдина точка виходу: AI-розбір на секції → stage-2 дедуп на
+    нормалізованому заголовку → збірка HTML-повідомлення → надсилання.
+    Довгі секції (notes, критерії, вимоги) відкидаються першими, якщо
+    повідомлення не влазить у ліміт Telegram (4096 симв.)."""
+    ai = reformat_post(f"{title}\n\n{description}", source_label)
+    final_title = ai.get("title") or title
+    deadline = ai.get("deadline") or deadline_hint
+
+    # Stage 2: дедуп на AI-нормалізованому заголовку — спільний пул для
+    # всіх джерел, ловить той самий грант із різних сайтів/каналів,
+    # навіть якщо їхні сирі заголовки сформульовані по-різному.
+    if is_title_duplicate(final_title, posted_titles) or is_semantic_duplicate(final_title, posted_keywords):
+        print(f"[{source_label}] Skipped (дубль після AI-нормалізації): {final_title[:60]}")
+        return _SkippedDuplicate()
+
+    header = f"{emoji} <b>{final_title}</b>"
+
+    meta = []
+    if deadline:
+        meta.append(f"📅 <b>Дедлайн:</b> {deadline}")
+    if ai.get("geography"):
+        meta.append(f"🌍 <b>Географія:</b> {ai['geography']}")
+
+    # (пріоритет, текст секції) — пріоритет 1 = найважливіше, викидається останнім
+    sections = []
+    if ai.get("intro"):
+        sections.append((1, ai["intro"]))
+    if meta:
+        sections.append((1, "\n".join(meta)))
+    if ai.get("funding"):
+        sections.append((2, "💰 <b>Фінансування:</b>\n" + _bullets(ai["funding"])))
+    if ai.get("audience"):
+        block = "👥 <b>Хто може податися:</b>\n" + _bullets(ai["audience"])
+        if ai.get("audience_excluded"):
+            block += f"\n{ai['audience_excluded']}"
+        sections.append((2, block))
+    if ai.get("supported"):
+        sections.append((3, "💡 <b>Що підтримується:</b>\n" + _bullets(ai["supported"])))
+    if ai.get("decision_date"):
+        sections.append((3, f"📆 <b>Рішення про фінансування:</b> {ai['decision_date']}"))
+    if ai.get("evaluation_criteria"):
+        sections.append((4, "🔬 <b>Оцінюватимуть:</b>\n" + _bullets(ai["evaluation_criteria"])))
+    if ai.get("application_requirements"):
+        sections.append((4, "📝 <b>У заявці потрібно надати:</b>\n" + _bullets(ai["application_requirements"])))
+    if ai.get("notes"):
+        sections.append((5, ai["notes"]))
+
+    links_block = f"🔗 <a href=\"{link}\">{source_label}</a>"
+    for l in (ai.get("extra_links") or []):
+        url, label = l.get("url"), l.get("label")
+        if url and label:
+            links_block += f"\n🔗 <a href=\"{url}\">{label}</a>"
+
+    body_for_hashtags = " ".join(
+        [ai.get("intro") or ""] + (ai.get("funding") or []) + (ai.get("supported") or [])
+    )
+    hashtags = generate_hashtags(final_title, body_for_hashtags)
+
+    reserved = len(header) + len(links_block) + (len(hashtags) + 4 if hashtags else 0) + 20
+    budget = 4000 - reserved  # запас нижче ліміту Telegram у 4096
+
+    kept, used = [], 0
+    for _, text in sorted(sections, key=lambda s: s[0]):
+        if used + len(text) + 2 <= budget:
+            kept.append(text)
+            used += len(text) + 2
+
+    parts = [header] + kept + [links_block]
+    if hashtags:
+        parts.append(hashtags)
+    msg = "\n\n".join(parts)
+
+    resp = send_telegram_message(msg)
+    print(resp.text)
+    if resp.status_code == 200:
+        save_title_hash(final_title, posted_titles, posted_keywords)
+    return resp
+
+
+# ---------------------------------------------------------------------------
 # УТИЛІТИ
 # ---------------------------------------------------------------------------
+
+def collect_paragraphs(container, min_len: int = 80, exclude: list = None,
+                        cap: int = 3000) -> str:
+    """Збирає текст УСІХ <p> контейнера (а не лише першого), щоб AI бачив
+    повний опис гранту (умови, аудиторію, критерії), а не один абзац."""
+    exclude = exclude or []
+    chunks, total = [], 0
+    for p in container.find_all("p"):
+        t = p.get_text(" ", strip=True)
+        if len(t) < min_len or any(ex in t.lower() for ex in exclude):
+            continue
+        chunks.append(t)
+        total += len(t)
+        if total >= cap:
+            break
+    return " ".join(chunks)[:cap]
+
 
 def fetch_html(url: str, timeout: int = 60, retries: int = 2):
     import warnings
@@ -538,7 +740,7 @@ def process_chaszmin_entry(title: str, link: str) -> str:
     return msg
 
 
-def run_chaszmin(posted_links: set) -> None:
+def run_chaszmin(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
     feed = feedparser.parse(CHASZMIN_RSS)
     if not feed.entries:
         print("[chaszmin] No entries")
@@ -553,6 +755,13 @@ def run_chaszmin(posted_links: set) -> None:
             save_posted_link(link)
             posted_links.add(link)
             continue
+        # Chaszmin не проходить через AI-переформат (свій регекс-парсинг),
+        # тож stage 2 тут звіряється просто на власному заголовку джерела.
+        if is_title_duplicate(title, posted_titles) or is_semantic_duplicate(title, posted_keywords):
+            print(f"[chaszmin] Skipped (дубль з іншого джерела): {title[:60]}")
+            save_posted_link(link)
+            posted_links.add(link)
+            continue
         print(f"[chaszmin] Processing: {title}")
         try:
             msg = process_chaszmin_entry(title, link)
@@ -561,6 +770,7 @@ def run_chaszmin(posted_links: set) -> None:
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
+                save_title_hash(title, posted_titles, posted_keywords)
         except Exception as e:
             print(f"[chaszmin] ERROR {link}: {e}")
 
@@ -570,6 +780,7 @@ def run_chaszmin(posted_links: set) -> None:
 # ---------------------------------------------------------------------------
 
 def run_simple_source(rss_url: str, source_label: str, posted_links: set,
+                      posted_titles: set, posted_keywords: list,
                       limit: int = 20, analytics_filter: bool = False) -> None:
     feed = feedparser.parse(rss_url)
     if not feed.entries:
@@ -618,9 +829,8 @@ def run_simple_source(rss_url: str, source_label: str, posted_links: set,
 
             print(f"[{source_label}] Processing: {item_title}")
             try:
-                msg = build_simple_message(item_title, link, item_text, source_label)
-                resp = send_telegram_message(msg)
-                print(resp.text)
+                resp = build_and_send("📌", item_title, link, item_text, source_label,
+                                       posted_titles, posted_keywords)
                 if resp.status_code == 200:
                     save_posted_link(item_key)
                     posted_links.add(item_key)
@@ -632,7 +842,7 @@ def run_simple_source(rss_url: str, source_label: str, posted_links: set,
 # ІСАР Єднання
 # ---------------------------------------------------------------------------
 
-def run_isar(posted_links: set) -> None:
+def run_isar(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
     soup = fetch_html(ISAR_URL)
     if not soup:
         return
@@ -666,21 +876,12 @@ def run_isar(posted_links: set) -> None:
                 continue
             description = ""
             content = page.find("div", class_=re.compile(r"item-page|article|content"))
-            if content:
-                for p in content.find_all("p"):
-                    t = p.get_text(" ", strip=True)
-                    if len(t) > 80:
-                        description = t[:600]
-                        break
+            description = collect_paragraphs(content if content else page)
             if not description:
                 description = title
             print(f"[ІСАР] Processing: {title}")
-            msg = f"📌 <b>{title}</b>\n"
-            if deadline_str:
-                msg += f"📅 <b>Дедлайн:</b> {deadline_str}\n"
-            msg += f"\n{description}\n\n🔗 <a href=\"{link}\">ІСАР Єднання — джерело</a>\n"
-            resp = send_telegram_message(msg)
-            print(resp.text)
+            resp = build_and_send("📌", title, link, description, "ІСАР Єднання — джерело",
+                                   posted_titles, posted_keywords, deadline_hint=deadline_str)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
@@ -693,7 +894,7 @@ def run_isar(posted_links: set) -> None:
 # МФ «Відродження»
 # ---------------------------------------------------------------------------
 
-def run_irf(posted_links: set) -> None:
+def run_irf(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
     import xml.etree.ElementTree as ET
 
     contest_urls = []
@@ -758,20 +959,11 @@ def run_irf(posted_links: set) -> None:
                 posted_links.add(link)
                 continue
             print(f"[МФВ] Processing: {title}")
-            description = ""
-            for p in page.find_all("p"):
-                t = p.get_text(" ", strip=True)
-                if len(t) > 80 and "завершення конкурсу" not in t.lower():
-                    description = t[:600]
-                    break
+            description = collect_paragraphs(page, exclude=["завершення конкурсу"])
             if not description:
                 description = title
-            msg = f"📌 <b>{title}</b>\n"
-            if deadline_str:
-                msg += f"📅 <b>Дедлайн:</b> {deadline_str}\n"
-            msg += f"\n{description}\n\n🔗 <a href=\"{link}\">МФ «Відродження» — джерело</a>\n"
-            resp = send_telegram_message(msg)
-            print(resp.text)
+            resp = build_and_send("📌", title, link, description, "МФ «Відродження» — джерело",
+                                   posted_titles, posted_keywords, deadline_hint=deadline_str)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
@@ -818,7 +1010,7 @@ def run_ucf(posted_links: set, posted_titles: set, posted_keywords: list) -> Non
             title = h1.get_text(" ", strip=True) if h1 else ""
             if not title:
                 continue
-            if is_title_duplicate(title, posted_titles) or is_semantic_duplicate(title, posted_keywords) or is_excluded(title):
+            if is_excluded(title):
                 save_posted_link(link)
                 posted_links.add(link)
                 continue
@@ -828,32 +1020,21 @@ def run_ucf(posted_links: set, posted_titles: set, posted_keywords: list) -> Non
                 save_posted_link(link)
                 posted_links.add(link)
                 continue
-            description = ""
-            for p in page.find_all("p"):
-                t = p.get_text(" ", strip=True)
-                if len(t) < 100 or any(j in t.lower() for j in UCF_JUNK):
-                    continue
-                description = t[:600]
-                break
+            description = collect_paragraphs(page, min_len=100, exclude=UCF_JUNK)
             if not description:
                 for div in page.find_all(["div", "section"]):
                     t = div.get_text(" ", strip=True)
                     if len(t) > 150 and not any(j in t.lower() for j in UCF_JUNK):
-                        description = t[:600]
+                        description = t[:3000]
                         break
             if not description:
                 description = title
             print(f"[УКФ] Processing: {title[:60]}")
-            msg = f"🎨 <b>{title}</b>\n"
-            if deadline_str:
-                msg += f"📅 <b>Дедлайн:</b> {deadline_str}\n"
-            msg += f"\n{description}\n\n🔗 <a href=\"{link}\">УКФ — джерело</a>\n"
-            resp = send_telegram_message(msg)
-            print(resp.text)
+            resp = build_and_send("🎨", title, link, description, "УКФ — джерело",
+                                   posted_titles, posted_keywords, deadline_hint=deadline_str)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
-                save_title_hash(title, posted_titles)
             time.sleep(2)
         except Exception as e:
             print(f"[УКФ] ERROR {link}: {e}")
@@ -922,11 +1103,6 @@ def run_veteranfund(posted_links: set, posted_titles: set, posted_keywords: list
                 save_posted_link(link)
                 posted_links.add(link)
                 continue
-            if is_title_duplicate(title, posted_titles) or is_semantic_duplicate(title, posted_keywords):
-                print(f"[ВФ] Skipped (дубль): {title[:60]}")
-                save_posted_link(link)
-                posted_links.add(link)
-                continue
             if is_excluded(title):
                 print(f"[ВФ] Skipped (фільтр): {title[:60]}")
                 save_posted_link(link)
@@ -939,25 +1115,15 @@ def run_veteranfund(posted_links: set, posted_titles: set, posted_keywords: list
                 save_posted_link(link)
                 posted_links.add(link)
                 continue
-            description = ""
-            for p in page.find_all("p"):
-                t = p.get_text(" ", strip=True)
-                if len(t) > 100:
-                    description = t[:600]
-                    break
+            description = collect_paragraphs(page, min_len=100)
             if not description:
                 description = title
             print(f"[ВФ] Processing: {title[:60]}")
-            msg = f"🎖 <b>{title}</b>\n"
-            if deadline_str:
-                msg += f"📅 <b>Дедлайн:</b> {deadline_str}\n"
-            msg += f"\n{description}\n\n🔗 <a href=\"{link}\">Ветеранський фонд — джерело</a>\n"
-            resp = send_telegram_message(msg)
-            print(resp.text)
+            resp = build_and_send("🎖", title, link, description, "Ветеранський фонд — джерело",
+                                   posted_titles, posted_keywords, deadline_hint=deadline_str)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
-                save_title_hash(title, posted_titles)
             time.sleep(2)
         except Exception as e:
             print(f"[ВФ] ERROR {link}: {e}")
@@ -1000,7 +1166,7 @@ def run_umf(posted_links: set, posted_titles: set, posted_keywords: list) -> Non
                 continue
             h1 = page.find("h1")
             title = h1.get_text(" ", strip=True) if h1 else ""
-            if not title or is_title_duplicate(title, posted_titles) or is_semantic_duplicate(title, posted_keywords) or is_excluded(title):
+            if not title or is_excluded(title):
                 save_posted_link(link)
                 posted_links.add(link)
                 continue
@@ -1010,25 +1176,15 @@ def run_umf(posted_links: set, posted_titles: set, posted_keywords: list) -> Non
                 save_posted_link(link)
                 posted_links.add(link)
                 continue
-            description = ""
-            for p in page.find_all("p"):
-                t = p.get_text(" ", strip=True)
-                if len(t) > 100:
-                    description = t[:600]
-                    break
+            description = collect_paragraphs(page, min_len=100)
             if not description:
                 description = title
             print(f"[УМФ] Processing: {title[:60]}")
-            msg = f"🌱 <b>{title}</b>\n"
-            if deadline_str:
-                msg += f"📅 <b>Дедлайн:</b> {deadline_str}\n"
-            msg += f"\n{description}\n\n🔗 <a href=\"{link}\">УМФ — джерело</a>\n"
-            resp = send_telegram_message(msg)
-            print(resp.text)
+            resp = build_and_send("🌱", title, link, description, "УМФ — джерело",
+                                   posted_titles, posted_keywords, deadline_hint=deadline_str)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
-                save_title_hash(title, posted_titles)
             time.sleep(2)
         except Exception as e:
             print(f"[УМФ] ERROR {link}: {e}")
@@ -1104,30 +1260,16 @@ def run_tg_channel(username: str, channel_name: str,
 
         first_line = text.split("\n")[0].strip()[:90] or text[:90]
 
-        if is_title_duplicate(first_line, posted_titles) or is_semantic_duplicate(first_line, posted_keywords):
-            print(f"[@{username}] Skipped (дубль): {first_line[:60]}")
-            save_posted_link(item_key)
-            posted_links.add(item_key)
-            continue
-
         print(f"[@{username}] Processing: {first_line[:60]}")
-        summary = text[:600] + "..." if len(text) > 600 else text
         deadline = extract_deadline(text)
-        hashtags = generate_hashtags(first_line, text)
-        msg_text = f"📌 <b>{first_line}</b>\n"
-        if deadline:
-            msg_text += f"📅 <b>Дедлайн:</b> {deadline}\n"
-        msg_text += f"\n{summary}\n\n🔗 <a href=\"{msg_url}\">{channel_name} — джерело</a>\n"
-        if hashtags:
-            msg_text += f"\n{hashtags}"
 
         try:
-            response = send_telegram_message(msg_text)
-            print(response.text)
+            response = build_and_send("📌", first_line, msg_url, text,
+                                       f"{channel_name} — джерело",
+                                       posted_titles, posted_keywords, deadline_hint=deadline)
             if response.status_code == 200:
                 save_posted_link(item_key)
                 posted_links.add(item_key)
-                save_title_hash(first_line, posted_titles)
             time.sleep(2)
         except Exception as e:
             print(f"[@{username}] ERROR {item_key}: {e}")
@@ -1142,13 +1284,15 @@ def main():
     posted_titles = load_posted_titles()
     posted_keywords = load_posted_keywords()
 
-    run_chaszmin(posted_links)
-    run_simple_source(GURT_RSS,     "ГУРТ — джерело",                posted_links)
-    run_simple_source(PROSTIR_RSS,  "Громадський Простір — джерело", posted_links)
+    run_chaszmin(posted_links, posted_titles, posted_keywords)
+    run_simple_source(GURT_RSS,     "ГУРТ — джерело",                posted_links,
+                      posted_titles, posted_keywords)
+    run_simple_source(PROSTIR_RSS,  "Громадський Простір — джерело", posted_links,
+                      posted_titles, posted_keywords)
     run_simple_source(GETGRANT_RSS,  "GetGrant — джерело",           posted_links,
-                      analytics_filter=True)
-    run_isar(posted_links)
-    run_irf(posted_links)
+                      posted_titles, posted_keywords, analytics_filter=True)
+    run_isar(posted_links, posted_titles, posted_keywords)
+    run_irf(posted_links, posted_titles, posted_keywords)
     run_ucf(posted_links, posted_titles, posted_keywords)
     run_veteranfund(posted_links, posted_titles, posted_keywords)
     run_umf(posted_links, posted_titles, posted_keywords)
