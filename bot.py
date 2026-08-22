@@ -343,21 +343,45 @@ def send_telegram_message(message: str) -> requests.Response:
 # ---------------------------------------------------------------------------
 
 AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гранти для українських НГО.
-Розбери пост на структуровані секції за схемою нижче. Правила:
-- Прибери рекламні хвости, заклики підписатись на джерело, зайвий емодзі-спам
-- Заповнюй лише ті поля, для яких є дані в оригінальному тексті — інакше null.
-  НІКОЛИ не вигадуй і не додумуй факти
-- Списки (funding, audience, supported, evaluation_criteria,
-  application_requirements) — короткі пункти без початкового "•", без крапки в кінці
+Розбери пост на структуровані секції за схемою нижче.
+
+КРИТИЧНО ВАЖЛИВО:
+- title — НЕ копіюй заголовок джерела дослівно, навіть якщо він переданий
+  тобі як перший рядок вхідного тексту. Той рядок може бути обрізаний на
+  середині слова чи речення — ігноруй це і сформулюй ВЛАСНИЙ короткий (до
+  ~100 символів), граматично ЗАВЕРШЕНИЙ заголовок на основі всього змісту.
+  Заголовок ніколи не повинен обриватися на півслові.
+- Кожен факт (дедлайн, сума, аудиторія, посилання, дата результатів тощо)
+  іде РІВНО в одне поле схеми, один раз. Якщо оригінал згадує факт кілька
+  разів (наприклад, спершу в тексті, потім ще раз у "підсумковому" блоці
+  наприкінці) — візьми його один раз у відповідне поле й не повторюй
+  ніде більше, включно з intro чи notes.
+- intro — СУВОРО 1-2 речення живого опису (хто/що/навіщо). Ніколи не
+  вставляй туди сирий текст джерела як є, не дублюй у ньому title, і не
+  перенось туди дедлайн/суму/вимоги/посилання — для них є окремі поля.
+- Прибери ВСІ декоративні емодзі-маркери оригіналу (🔸🔹🟠🔵➡️📌📍💰⏰✉️🎯📅
+  🎗️▶️ тощо, використані як буліти чи розділювачі) — вони не мають бути
+  ніде у виводі. Емодзі в самих полях схеми (наприклад заголовках секцій)
+  розставляє код, а не ти.
 - extra_links — тільки URL, які буквально присутні в оригінальному тексті
-  (наприклад окрема сторінка з умовами, форма подання, критерії відбору),
-  НЕ включай туди основне посилання на джерело — воно додається окремо
-- intro — 1-2 речення контексту (хто дає грант, на що), без дублювання title
+  (форма подання, детальна сторінка умов тощо). НЕ включай туди основне
+  посилання на джерело — воно додається окремо. Ніколи не обривай URL.
+- Списки (funding, audience, supported, evaluation_criteria,
+  application_requirements) — короткі пункти без початкового "•", без
+  крапки в кінці.
+- Заповнюй лише ті поля, для яких є дані в оригіналі — інакше null.
+  НІКОЛИ не вигадуй і не додумуй факти.
+- is_relevant = false, якщо пост НЕ є конкретним оголошенням гранту,
+  стипендії, конкурсу, тендеру для НГО, ретриту/навчання з реєстрацією
+  чи іншої програми підтримки з чіткою дією для читача (подати заявку,
+  зареєструватися). Онови, відеоблоги, загальні поради чи міркування на
+  тему грантів (навіть якщо каналом ведуться про гранти) — is_relevant=false.
 - Стиль: стисло, по суті, українською, без markdown-розмітки (без **, ##,```)"""
 
 AI_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
+        "is_relevant": {"type": "boolean"},
         "title": {"type": "string"},
         "intro": {"type": "string", "nullable": True},
         "deadline": {"type": "string", "nullable": True},
@@ -383,7 +407,7 @@ AI_RESPONSE_SCHEMA = {
             },
         },
     },
-    "required": ["title", "intro"],
+    "required": ["is_relevant", "title", "intro"],
 }
 
 _ai_client = None
@@ -396,11 +420,12 @@ def _get_ai_client():
 
 def reformat_post(raw_text: str, source: str) -> dict:
     """Переформатовує пост через Gemini. При будь-якій помилці — fallback
-    на плоский варіант (тільки intro = оригінальний текст), щоб пост усе
-    одно опублікувався, нехай і без розбивки на секції."""
-    fallback = {"title": None, "intro": raw_text, "deadline": None,
-                "geography": None, "funding": None, "audience": None,
-                "audience_excluded": None, "supported": None,
+    на плоский варіант (is_relevant=True, тільки intro = оригінальний
+    текст), щоб пост усе одно опублікувався, нехай і без розбивки на
+    секції — краще зайвий пост, ніж мовчки загублений через збій AI."""
+    fallback = {"is_relevant": True, "title": None, "intro": raw_text,
+                "deadline": None, "geography": None, "funding": None,
+                "audience": None, "audience_excluded": None, "supported": None,
                 "evaluation_criteria": None, "application_requirements": None,
                 "decision_date": None, "notes": None, "extra_links": None}
     if not GEMINI_API_KEY:
@@ -408,12 +433,13 @@ def reformat_post(raw_text: str, source: str) -> dict:
     try:
         client = _get_ai_client()
         resp = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
+            model="gemini-2.5-flash",
             contents=f"Оригінальний пост (джерело: {source}):\n---\n{raw_text}\n---",
             config=genai_types.GenerateContentConfig(
                 system_instruction=AI_SYSTEM_PROMPT,
                 response_mime_type="application/json",
                 response_schema=AI_RESPONSE_SCHEMA,
+                max_output_tokens=3072,
             ),
         )
         data = json.loads(resp.text)
@@ -435,14 +461,28 @@ class _SkippedDuplicate:
     text = "skipped: duplicate after AI normalization"
 
 
+class _SkippedIrrelevant:
+    """Аналогічний сурогат для випадку, коли AI визначив, що це не
+    оголошення гранту/конкурсу (наприклад, відео чи загальний пост
+    каналу), а щось інше — не публікуємо, але лінк все одно позначаємо
+    обробленим."""
+    status_code = 200
+    text = "skipped: not a grant/opportunity post"
+
+
 def build_and_send(emoji: str, title: str, link: str, description: str,
                     source_label: str, posted_titles: set, posted_keywords: list,
                     deadline_hint: str = "") -> requests.Response:
-    """Єдина точка виходу: AI-розбір на секції → stage-2 дедуп на
-    нормалізованому заголовку → збірка HTML-повідомлення → надсилання.
-    Довгі секції (notes, критерії, вимоги) відкидаються першими, якщо
-    повідомлення не влазить у ліміт Telegram (4096 симв.)."""
+    """Єдина точка виходу: AI-розбір на секції → фільтр релевантності →
+    stage-2 дедуп на нормалізованому заголовку → збірка HTML-повідомлення →
+    надсилання. Довгі секції (notes, критерії, вимоги) відкидаються першими,
+    якщо повідомлення не влазить у ліміт Telegram (4096 симв.)."""
     ai = reformat_post(f"{title}\n\n{description}", source_label)
+
+    if not ai.get("is_relevant", True):
+        print(f"[{source_label}] Skipped (не грант/захід за визначенням AI): {title[:60]}")
+        return _SkippedIrrelevant()
+
     final_title = ai.get("title") or title
     deadline = ai.get("deadline") or deadline_hint
 
@@ -1257,7 +1297,7 @@ def run_tg_channel(username: str, channel_name: str,
             posted_links.add(item_key)
             continue
 
-        first_line = text.split("\n")[0].strip()[:90] or text[:90]
+        first_line = text.split("\n")[0].strip() or text[:200]
 
         print(f"[@{username}] Processing: {first_line[:60]}")
         deadline = extract_deadline(text)
