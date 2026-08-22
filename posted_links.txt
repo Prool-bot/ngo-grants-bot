@@ -2384,3 +2384,4 @@ tg_grants_here_2431
 tg_GrantUP_16499
 https://www.prostir.ua/?grants=ivano-frankivska-oblast-nabir-dlya-zhinok-na-4-dennyj-biznes-treninh-z-mozhlyvistyu-otrymaty-mikrohrant#0
 tg_grantovyphishky_8832
+tg_grants_here_2432
