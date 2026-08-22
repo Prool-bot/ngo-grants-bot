@@ -6,7 +6,8 @@ import hashlib
 import feedparser
 import requests
 from bs4 import BeautifulSoup
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
@@ -385,21 +386,13 @@ AI_RESPONSE_SCHEMA = {
     "required": ["title", "intro"],
 }
 
-_ai_model = None
+_ai_client = None
 
-def _get_ai_model():
-    global _ai_model
-    if _ai_model is None:
-        genai.configure(api_key=GEMINI_API_KEY)
-        _ai_model = genai.GenerativeModel(
-            "gemini-2.5-flash-lite",
-            system_instruction=AI_SYSTEM_PROMPT,
-            generation_config={
-                "response_mime_type": "application/json",
-                "response_schema": AI_RESPONSE_SCHEMA,
-            },
-        )
-    return _ai_model
+def _get_ai_client():
+    global _ai_client
+    if _ai_client is None:
+        _ai_client = genai.Client(api_key=GEMINI_API_KEY)
+    return _ai_client
 
 def reformat_post(raw_text: str, source: str) -> dict:
     """Переформатовує пост через Gemini. При будь-якій помилці — fallback
@@ -413,9 +406,15 @@ def reformat_post(raw_text: str, source: str) -> dict:
     if not GEMINI_API_KEY:
         return fallback
     try:
-        model = _get_ai_model()
-        resp = model.generate_content(
-            f"Оригінальний пост (джерело: {source}):\n---\n{raw_text}\n---"
+        client = _get_ai_client()
+        resp = client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=f"Оригінальний пост (джерело: {source}):\n---\n{raw_text}\n---",
+            config=genai_types.GenerateContentConfig(
+                system_instruction=AI_SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                response_schema=AI_RESPONSE_SCHEMA,
+            ),
         )
         data = json.loads(resp.text)
         fallback.update({k: v for k, v in data.items() if v is not None})
