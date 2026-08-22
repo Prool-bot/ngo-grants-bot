@@ -2386,3 +2386,6 @@ https://www.prostir.ua/?grants=ivano-frankivska-oblast-nabir-dlya-zhinok-na-4-de
 tg_grantovyphishky_8832
 tg_grants_here_2432
 tg_grantovyphishky_8833
+tg_grantovyphishky_8835
+tg_grantovyphishky_8834
+tg_GrantUP_16500
