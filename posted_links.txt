@@ -2405,3 +2405,8 @@ tg_GrantUP_16503
 tg_GrantUP_16504
 tg_grantovyphishky_8845
 tg_grantovyphishky_8846
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-komunikatsijnoho-spetsialistaky-2#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-transportnyh-posluh-30#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-perevezennya-projektnyh-komand#0
+tg_grantovyphishky_8847
+tg_grants_here_2434
