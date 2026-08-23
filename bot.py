@@ -452,6 +452,30 @@ def reformat_post(raw_text: str, source: str) -> dict:
 def _bullets(items) -> str:
     return "\n".join(f"• {it}" for it in items) if items else ""
 
+def _dedupe_paragraphs(msg: str) -> str:
+    """Запобіжник на випадок, якщо AI (чи саме джерело) продублювало
+    текст кілька разів у різних полях (title/intro/notes тощо) — прибирає
+    абзаци, які повністю чи майже повністю повторюють уже показаний текст,
+    незалежно від того, наскільки добре модель виконала інструкцію."""
+    seen_norm = []
+    kept = []
+    for para in msg.split("\n\n"):
+        plain = re.sub(r"<[^>]+>", "", para)
+        norm = re.sub(r"[^\w]+", "", plain.lower())
+        if len(norm) < 20:
+            kept.append(para)
+            continue
+        is_dup = False
+        for s in seen_norm:
+            shorter, longer = (norm, s) if len(norm) <= len(s) else (s, norm)
+            if len(shorter) / len(longer) >= 0.6 and shorter in longer:
+                is_dup = True
+                break
+        if not is_dup:
+            seen_norm.append(norm)
+            kept.append(para)
+    return "\n\n".join(kept)
+
 class _SkippedDuplicate:
     """Легкий сурогат requests.Response для випадку, коли пост відсіявся
     на stage 2 (дублікат після AI-нормалізації). status_code=200 навмисно —
@@ -548,7 +572,7 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
     parts = [header] + kept + [links_block]
     if hashtags:
         parts.append(hashtags)
-    msg = "\n\n".join(parts)
+    msg = _dedupe_paragraphs("\n\n".join(parts))
 
     resp = send_telegram_message(msg)
     print(resp.text)
