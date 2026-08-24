@@ -2417,3 +2417,5 @@ tg_GrantUP_16507
 https://www.prostir.ua/?grants=postachannya-montazh-ta-puskonalahodzhennya-komplektiv-hibrydnyh-elektrychnyh-stantsij-z-invertoramy-ta-zovnishnimy-akumulyatoramy#0
 tg_grantsua_1631
 tg_grants_here_2435
+https://www.prostir.ua/?grants=televizijne-j-audiovizualne-obladnannya-systema-videokonferentszvyazku-2#0
+tg_GrantUP_16508
