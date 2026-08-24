@@ -770,8 +770,8 @@ def process_chaszmin_entry(title: str, link: str) -> str:
                 break
             clean.append(s)
         target = " ".join(clean).strip()
-        if len(target) > 400:
-            target = target[:400] + "..."
+        if len(target) > 900:
+            target = target[:900] + "..."
 
     search_zone = text
     fk = re.search(r"Для кого", search_zone, re.IGNORECASE)
@@ -793,13 +793,15 @@ def process_chaszmin_entry(title: str, link: str) -> str:
         break
     if not summary:
         summary = title
-    if len(summary) > 800:
-        summary = summary[:800] + "..."
+    if len(summary) > 1500:
+        summary = summary[:1500] + "..."
 
     msg = f"\n🌍 <b>{title}</b>\n📅 <b>Дедлайн:</b> {deadline}\n🌍 <b>Де:</b> {location}\n🎯 <b>Галузі:</b> {sectors}\n"
     if target:
         msg += f"\n👥 <b>Для кого:</b>\n{target}\n"
     msg += f"\n💡 <b>Деталі:</b>\n{summary}\n🔗 <a href=\"{link}\">Деталі гранту</a>\n"
+    if len(msg) > 4000:  # запас нижче ліміту Telegram у 4096, про всяк випадок
+        msg = msg[:4000] + "…"
     return msg
 
 
