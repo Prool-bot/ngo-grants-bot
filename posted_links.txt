@@ -2420,3 +2420,4 @@ tg_grants_here_2435
 https://www.prostir.ua/?grants=televizijne-j-audiovizualne-obladnannya-systema-videokonferentszvyazku-2#0
 tg_GrantUP_16508
 https://www.prostir.ua/?grants=zakupivlya-komplektiv-zasobiv-indyvidualnoho-zahystu-bronezhylety-kasky-aptechky#0
+tg_GrantUP_16515
