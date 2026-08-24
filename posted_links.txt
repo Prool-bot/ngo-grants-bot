@@ -2421,3 +2421,4 @@ https://www.prostir.ua/?grants=televizijne-j-audiovizualne-obladnannya-systema-v
 tg_GrantUP_16508
 https://www.prostir.ua/?grants=zakupivlya-komplektiv-zasobiv-indyvidualnoho-zahystu-bronezhylety-kasky-aptechky#0
 tg_GrantUP_16515
+tg_grantovyphishky_8849
