@@ -2436,3 +2436,4 @@ tg_grantovyphishky_8850
 tg_grantovyphishky_8851
 https://www.prostir.ua/?grants=vidkrytyj-tender-iz-zakupivli-bordyura-humovoho#0
 tg_GrantUP_16518
+https://www.prostir.ua/?grants=vidkrytyj-tender-iz-zakupivli-humovoji-plytky#0
