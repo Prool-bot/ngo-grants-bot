@@ -433,7 +433,7 @@ def reformat_post(raw_text: str, source: str) -> dict:
     try:
         client = _get_ai_client()
         resp = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.6-flash",
             contents=f"Оригінальний пост (джерело: {source}):\n---\n{raw_text}\n---",
             config=genai_types.GenerateContentConfig(
                 system_instruction=AI_SYSTEM_PROMPT,
