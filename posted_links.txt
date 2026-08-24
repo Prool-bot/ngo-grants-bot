@@ -2422,3 +2422,5 @@ tg_GrantUP_16508
 https://www.prostir.ua/?grants=zakupivlya-komplektiv-zasobiv-indyvidualnoho-zahystu-bronezhylety-kasky-aptechky#0
 tg_GrantUP_16515
 tg_grantovyphishky_8849
+https://www.prostir.ua/?grants=zakupivlya-posluh-z-orhanizatsiji-zahodu-eurobootcamp#0
+tg_GrantUP_16516
