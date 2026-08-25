@@ -2456,3 +2456,9 @@ tg_GrantUP_16521
 https://www.prostir.ua/?grants=tender-zakupivlya-ofisnoho-ta-kompyuternoho-obladnannya#0
 tg_GrantUP_16526
 tg_grants_here_2437
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-tovariv-ta-vaucheriv-dlya-ditej-ta-molodi-yaki-povernulysya-z-deportatsiji-abo-tot#0
+https://www.prostir.ua/?grants=zapyt-komertsijnyh-propozytsij-na-postavku-indyvidualnyh-komplektiv-dlya-pidhotovky-do-zymy-1908#0
+https://www.prostir.ua/?grants=rozrobka-ta-provedennya-praktychnoho-navchannya-z-vykorystannya-shtuchnoho-intelektu-dlya-partnerskyh-orhanizatsij-pidtrymky-biznesu-bso-prohramy-sippo-v-ukrajini#0
+tg_grantsua_1632
+tg_houseofeurope_2588
+tg_GrantUP_16527
