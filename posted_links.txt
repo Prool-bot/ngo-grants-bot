@@ -2462,3 +2462,7 @@ https://www.prostir.ua/?grants=rozrobka-ta-provedennya-praktychnoho-navchannya-z
 tg_grantsua_1632
 tg_houseofeurope_2588
 tg_GrantUP_16527
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-lohistychnyh-posluh-dlya-orhanizatsiji-ta-provedennya-stratehichnoji-sesiji-orhanizatsiji#0
+https://www.prostir.ua/?grants=vidkrytyj-tender-iz-zakupivli-trenazher-lehkovoho-avtomobilya-na-bazi-lehkovoho-avtomobilya-lanos-sens-abo-ekvivalent-2#0
+https://www.prostir.ua/?grants=zakupivlya-posluh-z-orendy-skladskyh-prymischen-v-mistah-mumy-ta-pavlohrad-dnipropetrovskoji-oblasti#0
+tg_GrantUP_16528
