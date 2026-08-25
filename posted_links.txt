@@ -2453,3 +2453,5 @@ tg_grantovyphishky_8853
 tg_grantovyphishky_8852
 https://www.prostir.ua/?grants=rejestratsiya-na-bezkoshtovnyj-navchalnyj-kurs-dlya-hromad-z-upravlinnya-biovidhodamy#0
 tg_GrantUP_16521
+https://www.prostir.ua/?grants=tender-zakupivlya-ofisnoho-ta-kompyuternoho-obladnannya#0
+tg_GrantUP_16526
