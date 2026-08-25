@@ -2525,3 +2525,4 @@ tg_GrantUP_16531
 https://getgrant.ua/grants-and-funding/remarket-keshbek-hranty-dlia-biznesu-2026/#0
 tg_GrantUP_16532
 tg_grantsua_1641
+tg_grantovyphishky_8867
