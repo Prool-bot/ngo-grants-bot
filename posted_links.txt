@@ -2455,3 +2455,4 @@ https://www.prostir.ua/?grants=rejestratsiya-na-bezkoshtovnyj-navchalnyj-kurs-dl
 tg_GrantUP_16521
 https://www.prostir.ua/?grants=tender-zakupivlya-ofisnoho-ta-kompyuternoho-obladnannya#0
 tg_GrantUP_16526
+tg_grants_here_2437
