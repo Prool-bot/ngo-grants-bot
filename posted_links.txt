@@ -2567,3 +2567,6 @@ https://www.prostir.ua/?grants=vidbir-vykonavtsya-dlya-provedennya-doslidzhennya
 https://www.prostir.ua/?grants=zakupivlya-postachannya-prodovolchyh-tovariv-prodovzheno#0
 tg_grantovyphishky_8875
 tg_grantovyphishky_8874
+https://www.prostir.ua/?grants=nadannya-posluh-perevezen-11#0
+https://www.prostir.ua/?grants=tender-na-zabezpechennya-likamy-osib-z-invalidnistyu-u-8-hromadah-v-sumskij-chernihivskij-harkivskij-poltavskij-oblastyah#0
+tg_GrantUP_16548
