@@ -2535,3 +2535,7 @@ tg_GrantUP_16542
 tg_GrantUP_16543
 tg_grants_here_2440
 http://gurt.org.ua/news/grants/112364/#0
+https://www.prostir.ua/?grants=provedennya-zakupivel-stem-eksponativ-dlya-molodizhnoho-tsentru#0
+https://www.prostir.ua/?grants=tender-na-nadannya-posluh-z-nadoluzhennya-osvitnih-vtrat-dlya-ditej-yaki-prozhyvayut-u-dytyachyh-budynkah-simejnoho-typu-dbst#0
+tg_houseofeurope_2591
+tg_GrantUP_16544
