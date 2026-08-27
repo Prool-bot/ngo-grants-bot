@@ -2616,3 +2616,7 @@ tg_GrantUP_16571
 http://gurt.org.ua/news/grants/112387/#0
 tg_grantsua_1645
 tg_houseofeurope_2593
+http://gurt.org.ua/news/grants/112391/#0
+https://www.prostir.ua/?grants=zakupivlya-transportnyh-posluh-u-terytorialnyh-hromadah-sumskoji-ta-chernihivskoji-oblastyah#0
+tg_grants_here_2444
+tg_GrantUP_16578
