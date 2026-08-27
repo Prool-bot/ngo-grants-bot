@@ -2602,3 +2602,10 @@ https://www.prostir.ua/?grants=zakupivlya-hihjenichnyh-naboriv-wash#0
 https://www.prostir.ua/?grants=zapyt-tsinovoji-propozytsiji-ztsp-dlya-zakupivli-autsorsynh-posluh-z-hr-ta-buhhalterskoho-obliku#0
 tg_grants_here_2443
 tg_GrantUP_16564
+https://www.prostir.ua/?grants=provision-of-specialized-data-analytics-tools-google-data-studio-previous-name-google-looker-studio-bigquery-and-datastream-nadannya-spetsializovanyh-instrumentiv-dlya-analizu-danyh-google-dat#0
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-treneratrenerky-dlya-provedennya-treninhu-osnovy-molodizhnoji-roboty#0
+https://www.prostir.ua/?grants=zapyt-tsinovyh-propozytsij-dlya-provedennya-mistsevoji-zakupivli-posluh-z-orhanizatsiji-vyjiznoho-rekreatsijno-vidnovlyuvalnoho-zahodu-tymbildynhu-dlya-fahivtsiv-projektu#0
+tg_grantovyphishky_8880
+tg_grantovyphishky_8879
+tg_houseofeurope_2592
+tg_GrantUP_16570
