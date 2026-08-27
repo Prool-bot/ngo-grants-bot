@@ -2594,3 +2594,5 @@ tg_grantsua_1644
 https://www.prostir.ua/?grants=zakupivlya-ta-dostavka-trubnyh-materialiv-ta-elementiv-dlya-remontu-vodoprovidnyh-merezh#0
 http://gurt.org.ua/news/grants/112380/#0
 tg_GrantUP_16558
+tg_grantovyphishky_8878
+tg_GrantUP_16563
