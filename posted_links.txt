@@ -2649,3 +2649,4 @@ http://gurt.org.ua/news/grants/112382/#0
 tg_grantsua_1647
 http://gurt.org.ua/news/grants/112392/#0
 tg_grantovyphishky_8882
+tg_GrantUP_16589
