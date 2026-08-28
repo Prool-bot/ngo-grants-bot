@@ -43,6 +43,12 @@ TG_CHANNELS = [
 # Турецький алерт (.../6210038733724999691) свідомо лишений на email —
 # сюди не додаємо. 3 з 17 алертів ще не перемкнуті — додати URL сюди,
 # коли з'являться, окремого коду для цього не треба.
+# Скільки постів із Google Alerts (сумарно з усіх 14 фідів + fundsforngos
+# збірок) можна опублікувати за ОДИН прогін бота. На старті, поки не
+# розібраний бэклог і не відкалібрована дедуплікація, тримаємо низько,
+# щоб не заливати канал одразу — решта підтягнеться наступними прогонами.
+GOOGLE_ALERTS_MAX_PER_RUN = 5
+
 GOOGLE_ALERT_FEEDS = [
     "https://www.google.com/alerts/feeds/06603459445468250172/5268179984561839474",
     "https://www.google.com/alerts/feeds/06603459445468250172/15600687525592128066",
@@ -551,6 +557,12 @@ class _SkippedIrrelevant:
     обробленим."""
     status_code = 200
     text = "skipped: not a grant/opportunity post"
+
+
+# Обидва сурогати мають status_code=200, як і справжня відповідь Telegram —
+# щоб відрізнити "реально надіслано" від "пропущено", перевіряємо тип,
+# а не тільки status_code. Використовується лічильником ліміту публікацій.
+_SKIP_SENTINELS = (_SkippedDuplicate, _SkippedIrrelevant)
 
 
 def build_and_send(emoji: str, title: str, link: str, description: str,
@@ -1430,11 +1442,13 @@ def extract_real_url(google_url: str) -> str:
 
 
 def process_fundsforngos_listing(digest_url: str, posted_links: set,
-                                  posted_titles: set, posted_keywords: list) -> None:
+                                  posted_titles: set, posted_keywords: list,
+                                  counter: dict) -> None:
     """fundsforngos.org/listing/... — щоденна збірка ~20-30 можливостей у
     форматі: жирний заголовок / Deadline: дата / опис / посилання 'more'.
     Розбираємо на окремі пункти й публікуємо кожен окремо через
-    build_and_send, а не одним суцільним постом."""
+    build_and_send, а не одним суцільним постом. Рахуємо в спільний
+    ліміт публікацій за прогін (counter), щоб не залити канал за раз."""
     page = fetch_html(digest_url)
     if not page:
         print(f"[fundsforngos] Не вдалось завантажити збірку: {digest_url}")
@@ -1442,6 +1456,10 @@ def process_fundsforngos_listing(digest_url: str, posted_links: set,
 
     items_found = 0
     for p in page.find_all("p"):
+        if counter["count"] >= GOOGLE_ALERTS_MAX_PER_RUN:
+            print(f"[fundsforngos] Досягнуто ліміт {GOOGLE_ALERTS_MAX_PER_RUN} публікацій за прогін — решта зачекає наступного запуску")
+            break
+
         more_link = None
         for a in p.find_all("a"):
             if a.get_text(strip=True).lower() in ("more", "read more", "[more]", "more…", "more..."):
@@ -1478,6 +1496,8 @@ def process_fundsforngos_listing(digest_url: str, posted_links: set,
             if resp.status_code == 200:
                 save_posted_link(item_url)
                 posted_links.add(item_url)
+                if not isinstance(resp, _SKIP_SENTINELS):
+                    counter["count"] += 1
         except Exception as e:
             print(f"[fundsforngos] ERROR {item_url}: {e}")
         time.sleep(2)
@@ -1486,7 +1506,7 @@ def process_fundsforngos_listing(digest_url: str, posted_links: set,
 
 
 def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
-                      posted_titles: set, posted_keywords: list) -> None:
+                      posted_titles: set, posted_keywords: list, counter: dict) -> None:
     feed = feedparser.parse(feed_url)
     if not feed.entries:
         print(f"[{alert_label}] Немає записів")
@@ -1494,6 +1514,10 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
     print(f"[{alert_label}] Знайдено {len(feed.entries)} записів")
 
     for entry in reversed(feed.entries):
+        if counter["count"] >= GOOGLE_ALERTS_MAX_PER_RUN:
+            print(f"[{alert_label}] Досягнуто ліміт {GOOGLE_ALERTS_MAX_PER_RUN} публікацій за прогін — решта зачекає наступного запуску")
+            return
+
         raw_title = clean_html_description(getattr(entry, "title", "") or "")
         google_link = getattr(entry, "link", "")
         real_url = extract_real_url(google_link)
@@ -1509,7 +1533,7 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
             continue
 
         if "fundsforngos.org/listing/" in real_url:
-            process_fundsforngos_listing(real_url, posted_links, posted_titles, posted_keywords)
+            process_fundsforngos_listing(real_url, posted_links, posted_titles, posted_keywords, counter)
             save_posted_link(real_url)
             posted_links.add(real_url)
             continue
@@ -1525,6 +1549,8 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
             if resp.status_code == 200:
                 save_posted_link(real_url)
                 posted_links.add(real_url)
+                if not isinstance(resp, _SKIP_SENTINELS):
+                    counter["count"] += 1
         except Exception as e:
             print(f"[{alert_label}] ERROR {real_url}: {e}")
         time.sleep(2)
@@ -1553,8 +1579,9 @@ def main():
     run_umf(posted_links, posted_titles, posted_keywords)
     for username, channel_name in TG_CHANNELS:
         run_tg_channel(username, channel_name, posted_links, posted_titles, posted_keywords)
+    google_alerts_counter = {"count": 0}
     for feed_url in GOOGLE_ALERT_FEEDS:
-        run_google_alert(feed_url, "Google Alerts — джерело", posted_links, posted_titles, posted_keywords)
+        run_google_alert(feed_url, "Google Alerts — джерело", posted_links, posted_titles, posted_keywords, google_alerts_counter)
 
 
 if __name__ == "__main__":
