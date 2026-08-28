@@ -2652,3 +2652,7 @@ tg_grantovyphishky_8882
 tg_GrantUP_16589
 http://gurt.org.ua/news/grants/112394/#0
 tg_GrantUP_16595
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-na-potochnyj-remont-chastyny-najprostishoho-ukryttya-dptnz-mizhrehionalne-vysche-profesijne-uchylysche-avtomobilnoho-transportu-ta-budivnytstva-m-lviv#0
+tg_grantsua_1648
+tg_grants_here_2446
+tg_GrantUP_16596
