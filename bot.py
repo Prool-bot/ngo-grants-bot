@@ -5,6 +5,7 @@ import time
 import hashlib
 import feedparser
 import requests
+from urllib.parse import urlparse, parse_qs
 from bs4 import BeautifulSoup
 from google import genai
 from google.genai import types as genai_types
@@ -36,6 +37,27 @@ TG_CHANNELS = [
     ("houseofeurope",   "House of Europe"),
     ("grants_here",     "Гранти та можливості"),  # 20K+ підписників, Connection Agency
     ("GrantUP",          "GrantUP"),               # є гранти, але і мікс-контент — фільтруємо
+]
+
+# Google Alerts, перемкнуті на доставку "Стрічка RSS" (не email).
+# Турецький алерт (.../6210038733724999691) свідомо лишений на email —
+# сюди не додаємо. 3 з 17 алертів ще не перемкнуті — додати URL сюди,
+# коли з'являться, окремого коду для цього не треба.
+GOOGLE_ALERT_FEEDS = [
+    "https://www.google.com/alerts/feeds/06603459445468250172/5268179984561839474",
+    "https://www.google.com/alerts/feeds/06603459445468250172/15600687525592128066",
+    "https://www.google.com/alerts/feeds/06603459445468250172/17432309056667434064",
+    "https://www.google.com/alerts/feeds/06603459445468250172/15095816566102354005",
+    "https://www.google.com/alerts/feeds/06603459445468250172/11989822152304859964",
+    "https://www.google.com/alerts/feeds/06603459445468250172/9255468434731935680",
+    "https://www.google.com/alerts/feeds/06603459445468250172/11190751281519302727",
+    "https://www.google.com/alerts/feeds/06603459445468250172/2233707504515249553",
+    "https://www.google.com/alerts/feeds/06603459445468250172/16145296542186185451",
+    "https://www.google.com/alerts/feeds/06603459445468250172/5043199070522725071",
+    "https://www.google.com/alerts/feeds/06603459445468250172/11445063240785440770",
+    "https://www.google.com/alerts/feeds/06603459445468250172/4634575910894582110",
+    "https://www.google.com/alerts/feeds/06603459445468250172/14758823063392152164",
+    "https://www.google.com/alerts/feeds/06603459445468250172/16695245203323163420",
 ]
 
 # ---------------------------------------------------------------------------
@@ -377,6 +399,17 @@ AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гра�
   підходить і чому. Заповнюй завжди, коли можливість відкрита для
   України (прямо, глобально, чи як асоційованого партнера). Якщо
   можливість НЕ стосується України — залиш null.
+- duration — тривалість самого проєкту/гранту після отримання
+  (наприклад "до 1 року", "6 місяців"), якщо вказано в оригіналі.
+  Це НЕ те саме, що дедлайн подачі заявки.
+- ukraine_eligible = false ТІЛЬКИ якщо можливість явно обмежена однією
+  конкретною країною чи регіоном, що виключає Україну (наприклад "лише
+  для організацій Кенії", "тільки для країн Латинської Америки"). В усіх
+  інших випадках — глобальні можливості,можливості де Україна прямо
+  названа, і програми де Україна є асоційованою країною/партнером
+  (Horizon Europe, Erasmus+, Creative Europe, EU4Culture, COSME тощо) —
+  ukraine_eligible = true. При будь-якому сумніві — true, а не false:
+  краще зайва публікація, ніж втрачена можливість.
 - extra_links — тільки URL, які буквально присутні в оригінальному тексті
   (форма подання, детальна сторінка умов тощо). НЕ включай туди основне
   посилання на джерело — воно додається окремо. Ніколи не обривай URL.
@@ -416,6 +449,8 @@ AI_RESPONSE_SCHEMA = {
         "decision_date": {"type": "string", "nullable": True},
         "notes": {"type": "string", "nullable": True},
         "ukraine_relevance": {"type": "string", "nullable": True},
+        "duration": {"type": "string", "nullable": True},
+        "ukraine_eligible": {"type": "boolean"},
         "extra_links": {
             "type": "array",
             "nullable": True,
@@ -450,6 +485,7 @@ def reformat_post(raw_text: str, source: str) -> dict:
                 "audience": None, "audience_excluded": None, "supported": None,
                 "evaluation_criteria": None, "application_requirements": None,
                 "decision_date": None, "notes": None, "ukraine_relevance": None,
+                "duration": None, "ukraine_eligible": True,
                 "extra_links": None}
     if not GEMINI_API_KEY:
         return fallback
@@ -530,6 +566,10 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         print(f"[{source_label}] Skipped (не грант/захід за визначенням AI): {title[:60]}")
         return _SkippedIrrelevant()
 
+    if not ai.get("ukraine_eligible", True):
+        print(f"[{source_label}] Skipped (не для України): {title[:60]}")
+        return _SkippedIrrelevant()
+
     final_title = ai.get("title") or title
     deadline = ai.get("deadline") or deadline_hint
 
@@ -570,6 +610,8 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         sections.append((3, "💡 <b>Що підтримується:</b>\n" + _bullets(ai["supported"])))
     if ai.get("decision_date"):
         sections.append((3, f"📆 <b>Рішення про фінансування:</b> {ai['decision_date']}"))
+    if ai.get("duration"):
+        sections.append((3, f"⏳ <b>Тривалість:</b> {ai['duration']}"))
     if ai.get("evaluation_criteria"):
         sections.append((4, "🔬 <b>Оцінюватимуть:</b>\n" + _bullets(ai["evaluation_criteria"])))
     if ai.get("application_requirements"):
@@ -1372,6 +1414,123 @@ def run_tg_channel(username: str, channel_name: str,
 
 
 # ---------------------------------------------------------------------------
+# GOOGLE ALERTS (міжнародні можливості)
+# ---------------------------------------------------------------------------
+
+def extract_real_url(google_url: str) -> str:
+    """Google Alerts у посиланні кожного запису фактично дає редірект
+    виду google.com/url?...&url=<справжнє посилання>&... — розпаковуємо."""
+    try:
+        qs = parse_qs(urlparse(google_url).query)
+        if "url" in qs and qs["url"]:
+            return qs["url"][0]
+    except Exception:
+        pass
+    return google_url
+
+
+def process_fundsforngos_listing(digest_url: str, posted_links: set,
+                                  posted_titles: set, posted_keywords: list) -> None:
+    """fundsforngos.org/listing/... — щоденна збірка ~20-30 можливостей у
+    форматі: жирний заголовок / Deadline: дата / опис / посилання 'more'.
+    Розбираємо на окремі пункти й публікуємо кожен окремо через
+    build_and_send, а не одним суцільним постом."""
+    page = fetch_html(digest_url)
+    if not page:
+        print(f"[fundsforngos] Не вдалось завантажити збірку: {digest_url}")
+        return
+
+    items_found = 0
+    for p in page.find_all("p"):
+        more_link = None
+        for a in p.find_all("a"):
+            if a.get_text(strip=True).lower() in ("more", "read more", "[more]", "more…", "more..."):
+                more_link = a.get("href")
+                break
+        if not more_link:
+            continue
+
+        item_url = more_link.strip()
+        if item_url in posted_links:
+            continue
+
+        full_text = p.get_text("\n", strip=True)
+        lines = [l for l in full_text.split("\n") if l.strip()]
+        if not lines:
+            continue
+        title = lines[0].strip()
+
+        deadline_match = re.search(r"Deadline\s*:?\s*(.+)", full_text, re.IGNORECASE)
+        deadline_hint = deadline_match.group(1).split("\n")[0].strip() if deadline_match else ""
+
+        description = full_text
+        if is_excluded(title) or is_excluded(description):
+            save_posted_link(item_url)
+            posted_links.add(item_url)
+            continue
+
+        items_found += 1
+        try:
+            resp = build_and_send("🌍", title, item_url, description,
+                                   "fundsforngos.org — джерело",
+                                   posted_titles, posted_keywords,
+                                   deadline_hint=deadline_hint)
+            if resp.status_code == 200:
+                save_posted_link(item_url)
+                posted_links.add(item_url)
+        except Exception as e:
+            print(f"[fundsforngos] ERROR {item_url}: {e}")
+        time.sleep(2)
+
+    print(f"[fundsforngos] Розібрано нових пунктів зі збірки: {items_found}")
+
+
+def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
+                      posted_titles: set, posted_keywords: list) -> None:
+    feed = feedparser.parse(feed_url)
+    if not feed.entries:
+        print(f"[{alert_label}] Немає записів")
+        return
+    print(f"[{alert_label}] Знайдено {len(feed.entries)} записів")
+
+    for entry in reversed(feed.entries):
+        raw_title = clean_html_description(getattr(entry, "title", "") or "")
+        google_link = getattr(entry, "link", "")
+        real_url = extract_real_url(google_link)
+        if not real_url:
+            continue
+
+        if real_url in posted_links:
+            continue
+
+        if is_excluded(raw_title):
+            save_posted_link(real_url)
+            posted_links.add(real_url)
+            continue
+
+        if "fundsforngos.org/listing/" in real_url:
+            process_fundsforngos_listing(real_url, posted_links, posted_titles, posted_keywords)
+            save_posted_link(real_url)
+            posted_links.add(real_url)
+            continue
+
+        page = fetch_html(real_url)
+        description = collect_paragraphs(page, min_len=100) if page else ""
+        if not description:
+            description = clean_html_description(getattr(entry, "summary", "") or "") or raw_title
+
+        try:
+            resp = build_and_send("🌍", raw_title, real_url, description, alert_label,
+                                   posted_titles, posted_keywords)
+            if resp.status_code == 200:
+                save_posted_link(real_url)
+                posted_links.add(real_url)
+        except Exception as e:
+            print(f"[{alert_label}] ERROR {real_url}: {e}")
+        time.sleep(2)
+
+
+# ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
 
@@ -1394,6 +1553,8 @@ def main():
     run_umf(posted_links, posted_titles, posted_keywords)
     for username, channel_name in TG_CHANNELS:
         run_tg_channel(username, channel_name, posted_links, posted_titles, posted_keywords)
+    for feed_url in GOOGLE_ALERT_FEEDS:
+        run_google_alert(feed_url, "Google Alerts — джерело", posted_links, posted_titles, posted_keywords)
 
 
 if __name__ == "__main__":
