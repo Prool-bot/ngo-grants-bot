@@ -367,6 +367,16 @@ AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гра�
   🎗️▶️ тощо, використані як буліти чи розділювачі) — вони не мають бути
   ніде у виводі. Емодзі в самих полях схеми (наприклад заголовках секцій)
   розставляє код, а не ти.
+- emoji — ОДИН емодзі, що тематично відповідає суті гранту (не завжди 📌):
+  🔐 безпека/кібербезпека, 🌱 екологія/старт, ♻️ циркулярна економіка,
+  ✍️ журналістика/письмо, 📸 фото, 🌳 довкілля/дерева, 🏙 урбаністика,
+  🎓 освіта, 🎨 мистецтво/культура, 💻 технології, ⚖️ права людини,
+  💼 бізнес, 🏥 здоров'я, 🕊️ миробудування — або інший доречний варіант.
+- ukraine_relevance — ОКРЕМЕ від notes поле: 1-2 речення про те, кому
+  саме в Україні (яким організаціям/фахівцям/громадам) ця можливість
+  підходить і чому. Заповнюй завжди, коли можливість відкрита для
+  України (прямо, глобально, чи як асоційованого партнера). Якщо
+  можливість НЕ стосується України — залиш null.
 - extra_links — тільки URL, які буквально присутні в оригінальному тексті
   (форма подання, детальна сторінка умов тощо). НЕ включай туди основне
   посилання на джерело — воно додається окремо. Ніколи не обривай URL.
@@ -392,6 +402,7 @@ AI_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
         "is_relevant": {"type": "boolean"},
+        "emoji": {"type": "string", "nullable": True},
         "title": {"type": "string"},
         "intro": {"type": "string", "nullable": True},
         "deadline": {"type": "string", "nullable": True},
@@ -404,6 +415,7 @@ AI_RESPONSE_SCHEMA = {
         "application_requirements": {"type": "array", "items": {"type": "string"}, "nullable": True},
         "decision_date": {"type": "string", "nullable": True},
         "notes": {"type": "string", "nullable": True},
+        "ukraine_relevance": {"type": "string", "nullable": True},
         "extra_links": {
             "type": "array",
             "nullable": True,
@@ -433,11 +445,12 @@ def reformat_post(raw_text: str, source: str) -> dict:
     на плоский варіант (is_relevant=True, тільки intro = оригінальний
     текст), щоб пост усе одно опублікувався, нехай і без розбивки на
     секції — краще зайвий пост, ніж мовчки загублений через збій AI."""
-    fallback = {"is_relevant": True, "title": None, "intro": raw_text,
+    fallback = {"is_relevant": True, "emoji": None, "title": None, "intro": raw_text,
                 "deadline": None, "geography": None, "funding": None,
                 "audience": None, "audience_excluded": None, "supported": None,
                 "evaluation_criteria": None, "application_requirements": None,
-                "decision_date": None, "notes": None, "extra_links": None}
+                "decision_date": None, "notes": None, "ukraine_relevance": None,
+                "extra_links": None}
     if not GEMINI_API_KEY:
         return fallback
     try:
@@ -520,6 +533,9 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
     final_title = ai.get("title") or title
     deadline = ai.get("deadline") or deadline_hint
 
+    ai_emoji = ai.get("emoji")
+    final_emoji = ai_emoji if ai_emoji and len(ai_emoji) <= 4 else emoji
+
     # Stage 2: дедуп на AI-нормалізованому заголовку — спільний пул для
     # всіх джерел, ловить той самий грант із різних сайтів/каналів,
     # навіть якщо їхні сирі заголовки сформульовані по-різному.
@@ -527,7 +543,7 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         print(f"[{source_label}] Skipped (дубль після AI-нормалізації): {final_title[:60]}")
         return _SkippedDuplicate()
 
-    header = f"{emoji} <b>{final_title}</b>"
+    header = f"{final_emoji} <b>{final_title}</b>"
 
     meta = []
     if deadline:
@@ -548,6 +564,8 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         if ai.get("audience_excluded"):
             block += f"\n{ai['audience_excluded']}"
         sections.append((2, block))
+    if ai.get("ukraine_relevance"):
+        sections.append((2, f"🇺🇦 {ai['ukraine_relevance']}"))
     if ai.get("supported"):
         sections.append((3, "💡 <b>Що підтримується:</b>\n" + _bullets(ai["supported"])))
     if ai.get("decision_date"):
@@ -566,9 +584,12 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
             links_block += f"\n🔗 <a href=\"{url}\">{label}</a>"
 
     body_for_hashtags = " ".join(
-        [ai.get("intro") or ""] + (ai.get("funding") or []) + (ai.get("supported") or [])
+        [ai.get("intro") or "", ai.get("ukraine_relevance") or ""]
+        + (ai.get("funding") or []) + (ai.get("supported") or [])
     )
     hashtags = generate_hashtags(final_title, body_for_hashtags)
+    if "#Україна" not in hashtags and "#україна" not in hashtags.lower():
+        hashtags = (hashtags + " #Україна").strip()
 
     reserved = len(header) + len(links_block) + (len(hashtags) + 4 if hashtags else 0) + 20
     budget = 4000 - reserved  # запас нижче ліміту Telegram у 4096
