@@ -2743,3 +2743,5 @@ https://www.prostir.ua/?grants=zakupivlya-systemy-videonahlyadu-ta-komplektuyuch
 tg_GrantUP_16601
 https://www2.fundsforngos.org/construction/apply-for-costar-showcase-labs-createch-infrastructure-and-commercialisation-grant-uk/
 https://www2.fundsforngos.org/construction/call-for-applications-wallace-fellowship-program/
+tg_grantovyphishky_8885
+tg_GrantUP_16602
