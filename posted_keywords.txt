@@ -200,3 +200,5 @@ capital|department|fund|national|offering|office|posts|security|strategic|supra
 cold|exhibition|magazine|voices|виставку|міжнародний|опен
 mesnographies|міжнародного|фестивалю|фотопроєктів|франції
 2027|cies|конференції|міжнародній|освітній|прийом|пропозицій|участі
+відкриття|дошкільної|закладів|освіти|приватних|розширення
+fs4africa|проєкту|хабів|інноваційних
