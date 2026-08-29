@@ -225,7 +225,7 @@ HASHTAG_RULES = [
                      "стипенді", "fellowship", "аспірант"]),
     ("#бізнес",     ["бізнес", "підприємц", "МСБ", "МСП", "стартап", "startup", "business",
                      "підприємств", "фермер", "агро", "виробництв"]),
-    ("#ГО",         ["громадськ організац", "нго", "нко", "го ", " го,", "civil society",
+    ("#ГО",         ["громадськ організац", "нго", "нко", "го", "civil society",
                      "некомерційн", "благодійн", "фонд підтримки"]),
     ("#відновлення",["відновлен", "reconstruction", "rebuild", "громад", "реінтеграц", "деокупац"]),
     ("#освіта",     ["освіт", "навчальн", "школ", "коледж", "education", "training", "викладач"]),
@@ -235,12 +235,28 @@ HASHTAG_RULES = [
 
 
 def generate_hashtags(title: str, description: str) -> str:
-    """Визначає категорії гранту і повертає рядок хештегів (максимум 3)."""
+    """Визначає категорії гранту і повертає рядок хештегів (максимум 3).
+    Пошук іде від межі слова (\\b), а не як довільний підрядок — інакше
+    короткі ключові слова хибно спрацьовують усередині інших слів
+    (наприклад "арт" всередині "стАРТап", "ЗМІ" на початку "ЗМІцнення").
+    Короткі абревіатури (ЗМІ, МСБ, МСП, арт) вимагають збігу цілого
+    слова; решта ключових слів лишається стемами (щоб "ветеран" і далі
+    ловив "ветеранів", "ветеранки" тощо)."""
     combined = (title + " " + description).lower()
+    WHOLE_WORD_ONLY = {"змі", "мсб", "мсп", "арт", "го"}
     matched = []
     for hashtag, keywords in HASHTAG_RULES:
-        if any(kw.lower() in combined for kw in keywords):
-            matched.append(hashtag)
+        for kw in keywords:
+            kw_l = kw.lower()
+            if not kw_l:
+                continue
+            if kw_l in WHOLE_WORD_ONLY:
+                pattern = r'\b' + re.escape(kw_l) + r'\b'
+            else:
+                pattern = r'\b' + re.escape(kw_l)
+            if re.search(pattern, combined):
+                matched.append(hashtag)
+                break
         if len(matched) >= 3:
             break
     return " ".join(matched) if matched else ""
