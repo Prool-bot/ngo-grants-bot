@@ -481,13 +481,22 @@ def _get_ai_client():
         _ai_client = genai.Client(api_key=GEMINI_API_KEY)
     return _ai_client
 
-def reformat_post(raw_text: str, source: str) -> dict:
-    """Переформатовує пост через Gemini. При будь-якій помилці — fallback
-    на плоский варіант (is_relevant=True, тільки intro = оригінальний
-    текст), щоб пост усе одно опублікувався, нехай і без розбивки на
-    секції — краще зайвий пост, ніж мовчки загублений через збій AI."""
-    fallback = {"is_relevant": True, "emoji": None, "title": None, "intro": raw_text,
-                "deadline": None, "geography": None, "funding": None,
+def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> dict:
+    """Переформатовує пост через Gemini.
+
+    При будь-якій помилці — fallback. Для перевірених 9 джерел (кожен
+    запис там — уже підтверджений грант з довіреного сайту) fallback
+    публікує сирий текст як є (is_relevant=True) — краще зайвий пост,
+    ніж мовчки загублений через збій AI.
+
+    Для шумніших джерел (strict_fallback=True, зараз — Google Alerts,
+    куди потрапляє будь-що за ключовими словами, включно з новинами,
+    що взагалі не про гранти) той самий збій AI натомість пропускає
+    публікацію (is_relevant=False) — тут ризик засмітити канал вищий за
+    ризик пропустити один грант, який і так, найімовірніше, повториться
+    в наступному прогоні алерта."""
+    fallback = {"is_relevant": not strict_fallback, "emoji": None, "title": None,
+                "intro": raw_text, "deadline": None, "geography": None, "funding": None,
                 "audience": None, "audience_excluded": None, "supported": None,
                 "evaluation_criteria": None, "application_requirements": None,
                 "decision_date": None, "notes": None, "ukraine_relevance": None,
@@ -567,12 +576,14 @@ _SKIP_SENTINELS = (_SkippedDuplicate, _SkippedIrrelevant)
 
 def build_and_send(emoji: str, title: str, link: str, description: str,
                     source_label: str, posted_titles: set, posted_keywords: list,
-                    deadline_hint: str = "") -> requests.Response:
+                    deadline_hint: str = "", strict_fallback: bool = False) -> requests.Response:
     """Єдина точка виходу: AI-розбір на секції → фільтр релевантності →
     stage-2 дедуп на нормалізованому заголовку → збірка HTML-повідомлення →
     надсилання. Довгі секції (notes, критерії, вимоги) відкидаються першими,
-    якщо повідомлення не влазить у ліміт Telegram (4096 симв.)."""
-    ai = reformat_post(f"{title}\n\n{description}", source_label)
+    якщо повідомлення не влазить у ліміт Telegram (4096 симв.).
+    strict_fallback=True — для шумних джерел (Google Alerts): якщо AI
+    впаде, пост НЕ публікується (замість публікації сирого тексту)."""
+    ai = reformat_post(f"{title}\n\n{description}", source_label, strict_fallback=strict_fallback)
 
     if not ai.get("is_relevant", True):
         print(f"[{source_label}] Skipped (не грант/захід за визначенням AI): {title[:60]}")
@@ -1524,7 +1535,7 @@ def process_fundsforngos_listing(digest_url: str, posted_links: set,
             resp = build_and_send("🌍", title, source_url, description,
                                    source_label,
                                    posted_titles, posted_keywords,
-                                   deadline_hint=deadline_hint)
+                                   deadline_hint=deadline_hint, strict_fallback=True)
             if resp.status_code == 200:
                 save_posted_link(item_url)
                 posted_links.add(item_url)
@@ -1582,9 +1593,12 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
         if not description:
             description = clean_html_description(getattr(entry, "summary", "") or "") or raw_title
 
+        netloc = urlparse(real_url).netloc.lower().replace("www.", "")
+        source_label = f"{netloc} — джерело" if netloc else alert_label
+
         try:
-            resp = build_and_send("🌍", raw_title, real_url, description, alert_label,
-                                   posted_titles, posted_keywords)
+            resp = build_and_send("🌍", raw_title, real_url, description, source_label,
+                                   posted_titles, posted_keywords, strict_fallback=True)
             if resp.status_code == 200:
                 save_posted_link(real_url)
                 posted_links.add(real_url)
