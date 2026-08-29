@@ -44,10 +44,13 @@ TG_CHANNELS = [
 # сюди не додаємо. 3 з 17 алертів ще не перемкнуті — додати URL сюди,
 # коли з'являться, окремого коду для цього не треба.
 # Скільки постів із Google Alerts (сумарно з усіх 14 фідів + fundsforngos
-# збірок) можна опублікувати за ОДИН прогін бота. На старті, поки не
-# розібраний бэклог і не відкалібрована дедуплікація, тримаємо низько,
-# щоб не заливати канал одразу — решта підтягнеться наступними прогонами.
-GOOGLE_ALERTS_MAX_PER_RUN = 5
+# збірок) можна опублікувати за ОДИН прогін бота. Спершу стояло 5 —
+# на старті, поки не був відкалібрований дедуп і fallback-поведінка при
+# збоях AI. Тепер ці запобіжники вже є (strict_fallback пропускає, а не
+# публікує сирий текст; дедуп ловить повтори), тож ліміт знято — велике
+# число замість жорсткого стелі, лишає можливість повернути обмеження
+# одним числом, якщо колись знову буде наплив.
+GOOGLE_ALERTS_MAX_PER_RUN = 200
 
 GOOGLE_ALERT_FEEDS = [
     "https://www.google.com/alerts/feeds/06603459445468250172/5268179984561839474",
@@ -1452,6 +1455,17 @@ def extract_real_url(google_url: str) -> str:
     return google_url
 
 
+# Соцмережі ніколи не можуть бути кінцевим "першоджерелом" посту —
+# використовується і в find_original_source_link, і в run_google_alert.
+SOCIAL_MEDIA_DOMAINS = ("facebook.com", "twitter.com", "x.com", "linkedin.com",
+                         "instagram.com", "youtube.com", "tiktok.com", "t.me")
+
+
+def is_social_media_url(url: str) -> bool:
+    netloc = urlparse(url).netloc.lower()
+    return any(s in netloc for s in SOCIAL_MEDIA_DOMAINS)
+
+
 def find_original_source_link(page) -> tuple:
     """Шукає на вже завантаженій сторінці fundsforngos.org посилання на
     справжнє першоджерело (сайт донора/фонду) — саме так, як це робиться
@@ -1459,12 +1473,10 @@ def find_original_source_link(page) -> tuple:
     веде далі. Ігнорує посилання на сам fundsforngos.org і на соцмережі.
     Повертає (url, назва_джерела) або (None, None), якщо не знайдено."""
     content = page.find("div", class_=re.compile(r"entry-content|post-content|content", re.I)) or page
-    skip_domains = ("fundsforngos", "facebook.com", "twitter.com", "x.com",
-                     "linkedin.com", "instagram.com", "youtube.com")
     for a in content.find_all("a", href=True):
         href = a["href"]
         netloc = urlparse(href).netloc.lower()
-        if not netloc or any(s in netloc for s in skip_domains):
+        if not netloc or "fundsforngos" in netloc or is_social_media_url(href):
             continue
         label = netloc.replace("www.", "") + " — джерело"
         return href, label
@@ -1588,13 +1600,33 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
             posted_links.add(real_url)
             continue
 
+        if is_social_media_url(real_url):
+            # Соцмережа не може бути кінцевим джерелом — пробуємо ще один
+            # перехід (сторінка соцмережі іноді містить лінк на офіційний
+            # сайт), а якщо нічого не знайшлось — не публікуємо взагалі,
+            # аби не показати Instagram/Facebook/X як "джерело".
+            social_page = fetch_html(real_url)
+            found_url, found_label = (find_original_source_link(social_page)
+                                       if social_page else (None, None))
+            if not found_url:
+                print(f"[{alert_label}] Skipped (лише соцмережа, першоджерело не знайдено): {raw_title[:60]}")
+                save_posted_link(real_url)
+                posted_links.add(real_url)
+                continue
+            real_url, netloc_source = found_url, found_label
+        else:
+            netloc_source = None
+
         page = fetch_html(real_url)
         description = collect_paragraphs(page, min_len=100) if page else ""
         if not description:
             description = clean_html_description(getattr(entry, "summary", "") or "") or raw_title
 
-        netloc = urlparse(real_url).netloc.lower().replace("www.", "")
-        source_label = f"{netloc} — джерело" if netloc else alert_label
+        if netloc_source:
+            source_label = netloc_source
+        else:
+            netloc = urlparse(real_url).netloc.lower().replace("www.", "")
+            source_label = f"{netloc} — джерело" if netloc else alert_label
 
         try:
             resp = build_and_send("🌍", raw_title, real_url, description, source_label,
