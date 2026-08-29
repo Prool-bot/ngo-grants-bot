@@ -1441,14 +1441,35 @@ def extract_real_url(google_url: str) -> str:
     return google_url
 
 
+def find_original_source_link(page) -> tuple:
+    """Шукає на вже завантаженій сторінці fundsforngos.org посилання на
+    справжнє першоджерело (сайт донора/фонду) — саме так, як це робиться
+    вручну: заходимо на сторінку конкретного гранту й дивимось, куди вона
+    веде далі. Ігнорує посилання на сам fundsforngos.org і на соцмережі.
+    Повертає (url, назва_джерела) або (None, None), якщо не знайдено."""
+    content = page.find("div", class_=re.compile(r"entry-content|post-content|content", re.I)) or page
+    skip_domains = ("fundsforngos", "facebook.com", "twitter.com", "x.com",
+                     "linkedin.com", "instagram.com", "youtube.com")
+    for a in content.find_all("a", href=True):
+        href = a["href"]
+        netloc = urlparse(href).netloc.lower()
+        if not netloc or any(s in netloc for s in skip_domains):
+            continue
+        label = netloc.replace("www.", "") + " — джерело"
+        return href, label
+    return None, None
+
+
 def process_fundsforngos_listing(digest_url: str, posted_links: set,
                                   posted_titles: set, posted_keywords: list,
                                   counter: dict) -> None:
     """fundsforngos.org/listing/... — щоденна збірка ~20-30 можливостей у
     форматі: жирний заголовок / Deadline: дата / опис / посилання 'more'.
-    Розбираємо на окремі пункти й публікуємо кожен окремо через
-    build_and_send, а не одним суцільним постом. Рахуємо в спільний
-    ліміт публікацій за прогін (counter), щоб не залити канал за раз."""
+    Розбираємо на окремі пункти; для кожного заходимо на його власну
+    сторінку fundsforngos.org (як вручну), беремо звідти повний опис і
+    шукаємо посилання на справжнє першоджерело — саме воно, а не сторінка
+    fundsforngos.org, стає посиланням у фінальному пості. Рахуємо в
+    спільний ліміт публікацій за прогін (counter), щоб не залити канал."""
     page = fetch_html(digest_url)
     if not page:
         print(f"[fundsforngos] Не вдалось завантажити збірку: {digest_url}")
@@ -1481,16 +1502,27 @@ def process_fundsforngos_listing(digest_url: str, posted_links: set,
         deadline_match = re.search(r"Deadline\s*:?\s*(.+)", full_text, re.IGNORECASE)
         deadline_hint = deadline_match.group(1).split("\n")[0].strip() if deadline_match else ""
 
-        description = full_text
-        if is_excluded(title) or is_excluded(description):
+        if is_excluded(title) or is_excluded(full_text):
             save_posted_link(item_url)
             posted_links.add(item_url)
             continue
 
+        # Заходимо на власну сторінку гранту на fundsforngos.org — там і
+        # повніший опис, і посилання на першоджерело
+        item_page = fetch_html(item_url)
+        if item_page:
+            description = collect_paragraphs(item_page, min_len=80) or full_text
+            source_url, source_label = find_original_source_link(item_page)
+        else:
+            description = full_text
+            source_url, source_label = None, None
+        if not source_url:
+            source_url, source_label = item_url, "fundsforngos.org — джерело"
+
         items_found += 1
         try:
-            resp = build_and_send("🌍", title, item_url, description,
-                                   "fundsforngos.org — джерело",
+            resp = build_and_send("🌍", title, source_url, description,
+                                   source_label,
                                    posted_titles, posted_keywords,
                                    deadline_hint=deadline_hint)
             if resp.status_code == 200:
