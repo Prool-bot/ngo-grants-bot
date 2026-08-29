@@ -1545,10 +1545,14 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
         return
     print(f"[{alert_label}] Знайдено {len(feed.entries)} записів")
 
+    already_posted = 0
+    filtered_out = 0
+    new_processed = 0
+
     for entry in reversed(feed.entries):
         if counter["count"] >= GOOGLE_ALERTS_MAX_PER_RUN:
             print(f"[{alert_label}] Досягнуто ліміт {GOOGLE_ALERTS_MAX_PER_RUN} публікацій за прогін — решта зачекає наступного запуску")
-            return
+            break
 
         raw_title = clean_html_description(getattr(entry, "title", "") or "")
         google_link = getattr(entry, "link", "")
@@ -1557,13 +1561,16 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
             continue
 
         if real_url in posted_links:
+            already_posted += 1
             continue
 
         if is_excluded(raw_title):
+            filtered_out += 1
             save_posted_link(real_url)
             posted_links.add(real_url)
             continue
 
+        new_processed += 1
         if "fundsforngos.org/listing/" in real_url:
             process_fundsforngos_listing(real_url, posted_links, posted_titles, posted_keywords, counter)
             save_posted_link(real_url)
@@ -1586,6 +1593,9 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
         except Exception as e:
             print(f"[{alert_label}] ERROR {real_url}: {e}")
         time.sleep(2)
+
+    print(f"[{alert_label}] Підсумок: {new_processed} нових оброблено, "
+          f"{already_posted} вже було раніше, {filtered_out} відфільтровано")
 
 
 # ---------------------------------------------------------------------------
