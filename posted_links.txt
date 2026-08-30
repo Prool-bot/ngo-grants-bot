@@ -2862,3 +2862,4 @@ tg_grantovyphishky_8901
 tg_grantovyphishky_8900
 tg_grantovyphishky_8899
 https://www.prostir.ua/?grants=tender-na-zakupivlyu-simejnyh-hihijenichnyh-naboriv#0
+tg_grantovyphishky_8902
