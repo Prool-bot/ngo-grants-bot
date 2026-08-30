@@ -11,6 +11,18 @@ on:
   # що ОБИДВА запуски в одну годину потраплять у пікове навантаження.
   - cron: '23 * * * *'
   - cron: '53 * * * *'
+
+# Цей workflow тригериться і власним schedule вище, І зовнішнім
+# cron-job.org (через workflow_dispatch) — обидва можуть спрацювати
+# близько один до одного. Без concurrency паралельні прогони
+# намагаються закомітити posted_links.txt одночасно, і другий push
+# відхиляється ("branch diverged"). group без "${{ github.run_id }}"
+# гарантує, що новий прогін ЧЕКАЄ завершення попереднього, а не
+# запускається паралельно.
+concurrency:
+  group: ngo-grants-bot
+  cancel-in-progress: false
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
@@ -36,6 +48,8 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
         run: |
           python bot.py
 
