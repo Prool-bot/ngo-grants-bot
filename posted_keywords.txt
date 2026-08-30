@@ -210,3 +210,4 @@ asecs|library|mcmaster|university|дослідницький
 fellowship|john|research|wilson|галузі|дослідницька|стипендія|церкви|історії
 fellowship|provost|нотр|постдокторальна|університеті
 гарвардського|постдокторська|стипендіальна|університету
+2026|disability|inclusion|partnerships|вищій|освіті|інклюзії
