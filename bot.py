@@ -389,6 +389,32 @@ def send_telegram_message(message: str) -> requests.Response:
     })
 
 
+def send_notification_email(subject: str, body: str) -> None:
+    """Надсилає власнику каналу email-сповіщення (наприклад, список
+    Instagram/Facebook постів, які бот не зміг прочитати сам). Не
+    критична функція для роботи бота — якщо секрети не задані чи SMTP
+    впаде, просто логуємо й продовжуємо, не ламаючи основний прогін."""
+    email_address = os.getenv("EMAIL_ADDRESS")
+    email_password = os.getenv("EMAIL_APP_PASSWORD")
+    if not email_address or not email_password:
+        print("[email] EMAIL_ADDRESS/EMAIL_APP_PASSWORD не задані — сповіщення пропущено")
+        return
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        msg = MIMEText(body, "plain", "utf-8")
+        msg["Subject"] = subject
+        msg["From"] = email_address
+        msg["To"] = email_address
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
+            server.starttls()
+            server.login(email_address, email_password)
+            server.send_message(msg)
+        print("[email] Сповіщення надіслано")
+    except Exception as e:
+        print(f"[email] Не вдалось надіслати: {e}")
+
+
 # ---------------------------------------------------------------------------
 # AI-ПЕРЕФОРМАТУВАННЯ (Gemini)
 # ---------------------------------------------------------------------------
@@ -602,6 +628,10 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
     якщо повідомлення не влазить у ліміт Telegram (4096 симв.).
     strict_fallback=True — для шумних джерел (Google Alerts): якщо AI
     впаде, пост НЕ публікується (замість публікації сирого тексту)."""
+    if is_ai_chat_share_url(link):
+        print(f"[{source_label}] Skipped (посилання на ШІ-чат, не на першоджерело): {title[:60]}")
+        return _SkippedIrrelevant()
+
     ai = reformat_post(f"{title}\n\n{description}", source_label, strict_fallback=strict_fallback)
 
     if not ai.get("is_relevant", True):
@@ -1476,10 +1506,58 @@ def extract_real_url(google_url: str) -> str:
 SOCIAL_MEDIA_DOMAINS = ("facebook.com", "twitter.com", "x.com", "linkedin.com",
                          "instagram.com", "youtube.com", "tiktok.com", "t.me")
 
+# Посилання на "поділитись розмовою" зі ШІ-чатами — це НЕ першоджерело.
+# Якщо на них щось указує, вміст поста міг бути ШІ-згенерованим/
+# нафантазованим, а не реальною інформацією з сайту організації — тому,
+# на відміну від соцмереж, тут не шукаємо інший лінк, а просто НЕ
+# публікуємо пост узагалі.
+AI_CHAT_SHARE_DOMAINS = ("meta.ai", "chatgpt.com", "chat.openai.com",
+                          "gemini.google.com", "claude.ai", "perplexity.ai",
+                          "copilot.microsoft.com")
+
 
 def is_social_media_url(url: str) -> bool:
     netloc = urlparse(url).netloc.lower()
     return any(s in netloc for s in SOCIAL_MEDIA_DOMAINS)
+
+
+def is_ai_chat_share_url(url: str) -> bool:
+    netloc = urlparse(url).netloc.lower()
+    return any(s in netloc for s in AI_CHAT_SHARE_DOMAINS)
+
+
+def fetch_tweet_content(tweet_url: str) -> tuple:
+    """Читає текст ПУБЛІЧНОГО твіта без логіну й без API-ключа через
+    недокументований syndication-endpoint Twitter/X (той самий, яким
+    користується офіційний embed-віджет). Це не офіційне API — воно
+    ЧЕСНО ненадійне: іноді повертає порожню відповідь навіть на валідний
+    твіт (200 OK, пусте тіло). Тому будь-яка невдача тут — це нормально,
+    обробляється як "джерело не знайдено", а не як помилка.
+    Повертає (текст_твіта, посилання_з_твіта_якщо_є) або (None, None)."""
+    m = re.search(r"status(?:es)?/(\d+)", tweet_url)
+    if not m:
+        return None, None
+    tweet_id = m.group(1)
+    try:
+        resp = requests.get(
+            f"https://cdn.syndication.twimg.com/tweet-result?id={tweet_id}&token=0",
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                    "AppleWebKit/537.36 Chrome/125.0 Safari/537.36"},
+            timeout=15,
+        )
+        data = resp.json()
+        text = data.get("text")
+        if not text:
+            return None, None
+        link = None
+        for u in (data.get("entities") or {}).get("urls", []) or []:
+            expanded = u.get("expanded_url")
+            if expanded and not is_social_media_url(expanded):
+                link = expanded
+                break
+        return text, link
+    except Exception:
+        return None, None
 
 
 def find_original_source_link(page) -> tuple:
@@ -1492,7 +1570,7 @@ def find_original_source_link(page) -> tuple:
     for a in content.find_all("a", href=True):
         href = a["href"]
         netloc = urlparse(href).netloc.lower()
-        if not netloc or "fundsforngos" in netloc or is_social_media_url(href):
+        if not netloc or "fundsforngos" in netloc or is_social_media_url(href) or is_ai_chat_share_url(href):
             continue
         label = netloc.replace("www.", "") + " — джерело"
         return href, label
@@ -1577,7 +1655,8 @@ def process_fundsforngos_listing(digest_url: str, posted_links: set,
 
 
 def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
-                      posted_titles: set, posted_keywords: list, counter: dict) -> None:
+                      posted_titles: set, posted_keywords: list, counter: dict,
+                      unresolved_social: list) -> None:
     feed = feedparser.parse(feed_url)
     if not feed.entries:
         print(f"[{alert_label}] Немає записів")
@@ -1616,25 +1695,47 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
             posted_links.add(real_url)
             continue
 
+        description = None
         if is_social_media_url(real_url):
-            # Соцмережа не може бути кінцевим джерелом — пробуємо ще один
-            # перехід (сторінка соцмережі іноді містить лінк на офіційний
-            # сайт), а якщо нічого не знайшлось — не публікуємо взагалі,
-            # аби не показати Instagram/Facebook/X як "джерело".
-            social_page = fetch_html(real_url)
-            found_url, found_label = (find_original_source_link(social_page)
-                                       if social_page else (None, None))
-            if not found_url:
-                print(f"[{alert_label}] Skipped (лише соцмережа, першоджерело не знайдено): {raw_title[:60]}")
-                save_posted_link(real_url)
-                posted_links.add(real_url)
-                continue
-            real_url, netloc_source = found_url, found_label
+            netloc_check = urlparse(real_url).netloc.lower()
+            if "x.com" in netloc_check or "twitter.com" in netloc_check:
+                tweet_text, tweet_link = fetch_tweet_content(real_url)
+                if not tweet_text:
+                    print(f"[{alert_label}] Skipped (твіт не вдалось прочитати): {raw_title[:60]}")
+                    save_posted_link(real_url)
+                    posted_links.add(real_url)
+                    continue
+                description = tweet_text
+                if tweet_link:
+                    real_url = tweet_link
+                    tweet_page = fetch_html(real_url)
+                    fuller = collect_paragraphs(tweet_page, min_len=100) if tweet_page else ""
+                    if fuller:
+                        description = fuller
+                    domain = urlparse(real_url).netloc.lower().replace("www.", "")
+                    netloc_source = f"{domain} — джерело" if domain else "x.com — джерело"
+                else:
+                    netloc_source = "x.com — джерело"
+            else:
+                # Facebook/Instagram — простий перехід. Instagram майже
+                # завжди тут впаде (блокує датацентрові IP на першому ж
+                # запиті) — це очікувано, обробляється як пропуск нижче.
+                social_page = fetch_html(real_url)
+                found_url, found_label = (find_original_source_link(social_page)
+                                           if social_page else (None, None))
+                if not found_url:
+                    print(f"[{alert_label}] Skipped (лише соцмережа, першоджерело не знайдено, надіслано на email): {raw_title[:60]}")
+                    save_posted_link(real_url)
+                    posted_links.add(real_url)
+                    unresolved_social.append((raw_title, real_url))
+                    continue
+                real_url, netloc_source = found_url, found_label
         else:
             netloc_source = None
 
-        page = fetch_html(real_url)
-        description = collect_paragraphs(page, min_len=100) if page else ""
+        if description is None:
+            page = fetch_html(real_url)
+            description = collect_paragraphs(page, min_len=100) if page else ""
         if not description:
             description = clean_html_description(getattr(entry, "summary", "") or "") or raw_title
 
@@ -1684,8 +1785,19 @@ def main():
     for username, channel_name in TG_CHANNELS:
         run_tg_channel(username, channel_name, posted_links, posted_titles, posted_keywords)
     google_alerts_counter = {"count": 0}
+    unresolved_social = []
     for feed_url in GOOGLE_ALERT_FEEDS:
-        run_google_alert(feed_url, "Google Alerts — джерело", posted_links, posted_titles, posted_keywords, google_alerts_counter)
+        run_google_alert(feed_url, "Google Alerts — джерело", posted_links, posted_titles,
+                          posted_keywords, google_alerts_counter, unresolved_social)
+
+    if unresolved_social:
+        lines = [f"- {title}\n  {url}" for title, url in unresolved_social]
+        body = ("Ці Instagram/Facebook пости бот не зміг прочитати сам "
+                "(першоджерело не знайдено) — обробіть вручну:\n\n" + "\n\n".join(lines))
+        send_notification_email(
+            f"NGO Grants Bot: {len(unresolved_social)} нерозпізнаних постів із соцмереж",
+            body,
+        )
 
 
 if __name__ == "__main__":
