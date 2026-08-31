@@ -69,6 +69,17 @@ GOOGLE_ALERT_FEEDS = [
     "https://www.google.com/alerts/feeds/06603459445468250172/7557868730733148971",   # 10. Гуманітарна допомога / ВПО
 ]
 
+# Міжнародний агрегатор стипендій/стажувань/фелоушипів/конференцій —
+# WordPress-стрічка, майже щоденні окремі пости (не збірки).
+OPPORTUNITIES_RADAR_RSS = "https://opportunitiesradar.com/feed/"
+
+# Сайти-агрегатори/блоги можливостей, які САМІ НЕ Є першоджерелом — вони
+# лише переказують і посилаються на офіційну сторінку донора/фонду.
+# Коли Google Alert приводить на будь-який із цих доменів, бот заходить
+# на сторінку й шукає СПРАВЖНЄ джерело всередині, а не публікує сам блог
+# як джерело. Список поповнюється в міру виявлення нових таких сайтів.
+KNOWN_AGGREGATOR_DOMAINS = ("fundsforngos", "opportunitiesradar", "globalsouthopportunities")
+
 # ---------------------------------------------------------------------------
 # ФІЛЬТРИ
 # ---------------------------------------------------------------------------
@@ -1504,7 +1515,8 @@ def extract_real_url(google_url: str) -> str:
 # Соцмережі ніколи не можуть бути кінцевим "першоджерелом" посту —
 # використовується і в find_original_source_link, і в run_google_alert.
 SOCIAL_MEDIA_DOMAINS = ("facebook.com", "twitter.com", "x.com", "linkedin.com",
-                         "instagram.com", "youtube.com", "tiktok.com", "t.me")
+                         "instagram.com", "youtube.com", "tiktok.com", "t.me",
+                         "whatsapp.com")
 
 # Посилання на "поділитись розмовою" зі ШІ-чатами — це НЕ першоджерело.
 # Якщо на них щось указує, вміст поста міг бути ШІ-згенерованим/
@@ -1560,17 +1572,19 @@ def fetch_tweet_content(tweet_url: str) -> tuple:
         return None, None
 
 
-def find_original_source_link(page) -> tuple:
-    """Шукає на вже завантаженій сторінці fundsforngos.org посилання на
-    справжнє першоджерело (сайт донора/фонду) — саме так, як це робиться
-    вручну: заходимо на сторінку конкретного гранту й дивимось, куди вона
-    веде далі. Ігнорує посилання на сам fundsforngos.org і на соцмережі.
+def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
+    """Шукає на вже завантаженій сторінці (fundsforngos.org, opportunitiesradar.com
+    тощо) посилання на справжнє першоджерело (сайт донора/фонду) — саме
+    так, як це робиться вручну: заходимо на сторінку конкретної можливості
+    й дивимось, куди вона веде далі. Ігнорує посилання на сам сайт-джерело
+    (fundsforngos + будь-що з extra_skip_domains) і на соцмережі/ШІ-чати.
     Повертає (url, назва_джерела) або (None, None), якщо не знайдено."""
     content = page.find("div", class_=re.compile(r"entry-content|post-content|content", re.I)) or page
+    skip_own = ("fundsforngos",) + extra_skip_domains
     for a in content.find_all("a", href=True):
         href = a["href"]
         netloc = urlparse(href).netloc.lower()
-        if not netloc or "fundsforngos" in netloc or is_social_media_url(href) or is_ai_chat_share_url(href):
+        if not netloc or any(d in netloc for d in skip_own) or is_social_media_url(href) or is_ai_chat_share_url(href):
             continue
         label = netloc.replace("www.", "") + " — джерело"
         return href, label
@@ -1731,7 +1745,24 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
                     continue
                 real_url, netloc_source = found_url, found_label
         else:
-            netloc_source = None
+            netloc_check = urlparse(real_url).netloc.lower()
+            if any(d in netloc_check for d in KNOWN_AGGREGATOR_DOMAINS):
+                # Це сайт-блог/агрегатор (типу fundsforngos.org,
+                # opportunitiesradar.com, globalsouthopportunities.com) —
+                # сам по собі НЕ першоджерело. Заходимо на сторінку й
+                # шукаємо справжнє посилання на сайт донора/фонду.
+                agg_page = fetch_html(real_url)
+                found_url, found_label = (find_original_source_link(agg_page, extra_skip_domains=KNOWN_AGGREGATOR_DOMAINS)
+                                           if agg_page else (None, None))
+                if found_url:
+                    real_url, netloc_source = found_url, found_label
+                    fuller = collect_paragraphs(agg_page, min_len=100) if agg_page else ""
+                    if fuller:
+                        description = fuller
+                else:
+                    netloc_source = None
+            else:
+                netloc_source = None
 
         if description is None:
             page = fetch_html(real_url)
@@ -1762,6 +1793,55 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
 
 
 # ---------------------------------------------------------------------------
+# OPPORTUNITIES RADAR (стипендії/стажування/фелоушипи, міжнародні)
+# ---------------------------------------------------------------------------
+
+def run_opportunities_radar(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
+    feed = feedparser.parse(OPPORTUNITIES_RADAR_RSS)
+    if not feed.entries:
+        print("[Opportunities Radar] Немає записів")
+        return
+    print(f"[Opportunities Radar] Знайдено {len(feed.entries)} записів")
+
+    for entry in reversed(feed.entries):
+        link = getattr(entry, "link", "")
+        if not link or link in posted_links:
+            continue
+
+        raw_title = clean_html_description(getattr(entry, "title", "") or "")
+        if is_excluded(raw_title):
+            save_posted_link(link)
+            posted_links.add(link)
+            continue
+
+        html = ""
+        if getattr(entry, "content", None):
+            html = entry.content[0].get("value", "")
+        if not html:
+            html = getattr(entry, "summary", "") or ""
+        soup = BeautifulSoup(html, "html.parser") if html else None
+
+        description = collect_paragraphs(soup, min_len=40) if soup else ""
+        if not description:
+            description = clean_html_description(html) or raw_title
+
+        source_url, source_label = (find_original_source_link(soup, extra_skip_domains=("opportunitiesradar",))
+                                     if soup else (None, None))
+        if not source_url:
+            source_url, source_label = link, "opportunitiesradar.com — джерело"
+
+        try:
+            resp = build_and_send("🌍", raw_title, source_url, description, source_label,
+                                   posted_titles, posted_keywords, strict_fallback=True)
+            if resp.status_code == 200:
+                save_posted_link(link)
+                posted_links.add(link)
+        except Exception as e:
+            print(f"[Opportunities Radar] ERROR {link}: {e}")
+        time.sleep(2)
+
+
+# ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
 
@@ -1789,6 +1869,8 @@ def main():
     for feed_url in GOOGLE_ALERT_FEEDS:
         run_google_alert(feed_url, "Google Alerts — джерело", posted_links, posted_titles,
                           posted_keywords, google_alerts_counter, unresolved_social)
+
+    run_opportunities_radar(posted_links, posted_titles, posted_keywords)
 
     if unresolved_social:
         lines = [f"- {title}\n  {url}" for title, url in unresolved_social]
