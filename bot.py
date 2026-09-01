@@ -73,12 +73,22 @@ GOOGLE_ALERT_FEEDS = [
 # WordPress-стрічка, майже щоденні окремі пости (не збірки).
 OPPORTUNITIES_RADAR_RSS = "https://opportunitiesradar.com/feed/"
 
+# Colossal публікує раз на місяць велику статтю-збірку можливостей для
+# митців. Використовуємо весь сайтовий фід і фільтруємо за категорією
+# "Opportunities" в коді, бо категорійний фід окремо не підтверджений.
+COLOSSAL_RSS = "https://www.thisiscolossal.com/feed/"
+
+# Українсько-польське регіональне видання, категорія "Можливості"
+# (конкурси/гранти) — окремі статті, не збірка, пагінація не потрібна,
+# бо нові записи завжди зверху першої сторінки.
+MONITOR_WOLYNSKI_URL = "https://monitorwolynski.com/uk/categories/konkursy"
+
 # Сайти-агрегатори/блоги можливостей, які САМІ НЕ Є першоджерелом — вони
 # лише переказують і посилаються на офіційну сторінку донора/фонду.
 # Коли Google Alert приводить на будь-який із цих доменів, бот заходить
 # на сторінку й шукає СПРАВЖНЄ джерело всередині, а не публікує сам блог
 # як джерело. Список поповнюється в міру виявлення нових таких сайтів.
-KNOWN_AGGREGATOR_DOMAINS = ("fundsforngos", "opportunitiesradar", "globalsouthopportunities")
+KNOWN_AGGREGATOR_DOMAINS = ("fundsforngos", "opportunitiesradar", "globalsouthopportunities", "vacancyedu")
 
 # ---------------------------------------------------------------------------
 # ФІЛЬТРИ
@@ -1484,9 +1494,16 @@ def run_tg_channel(username: str, channel_name: str,
         print(f"[@{username}] Processing: {first_line[:60]}")
         deadline = extract_deadline(text)
 
+        # TG-канал сам не є першоджерелом — він лише репостить. Шукаємо
+        # реальне посилання прямо в тексті поста (Telegram сам робить URL
+        # клікабельними, тож усі лінки вже є в text_div).
+        source_url, source_label = find_original_source_link(text_div)
+        if not source_url:
+            source_url, source_label = msg_url, f"{channel_name} — джерело"
+
         try:
-            response = build_and_send("📌", first_line, msg_url, text,
-                                       f"{channel_name} — джерело",
+            response = build_and_send("📌", first_line, source_url, text,
+                                       source_label,
                                        posted_titles, posted_keywords, deadline_hint=deadline)
             if response.status_code == 200:
                 save_posted_link(item_key)
@@ -1842,6 +1859,135 @@ def run_opportunities_radar(posted_links: set, posted_titles: set, posted_keywor
 
 
 # ---------------------------------------------------------------------------
+# COLOSSAL (щомісячна збірка можливостей для митців)
+# ---------------------------------------------------------------------------
+
+def process_colossal_digest(digest_url: str, posted_links: set,
+                             posted_titles: set, posted_keywords: list) -> None:
+    """thisiscolossal.com публікує раз на місяць статтю-збірку можливостей
+    для митців. На відміну від fundsforngos.org, тут заголовок кожного
+    пункту вже сам є посиланням на офіційний сайт — окремий "стрибок"
+    за першоджерелом не потрібен, воно вже є."""
+    page = fetch_html(digest_url)
+    if not page:
+        print(f"[Colossal] Не вдалось завантажити збірку: {digest_url}")
+        return
+
+    items_found = 0
+    for p in page.find_all(["p", "li"]):
+        strong = p.find("strong")
+        if not strong:
+            continue
+        a = strong.find("a", href=True)
+        if not a:
+            continue
+
+        item_url = a["href"].strip()
+        netloc = urlparse(item_url).netloc.lower()
+        if not netloc or "thisiscolossal" in netloc or is_social_media_url(item_url):
+            continue
+        if item_url in posted_links:
+            continue
+
+        title = a.get_text(strip=True)
+        full_text = p.get_text(" ", strip=True)
+        deadline_match = re.search(r"Deadline[:\s]*(.+)", full_text, re.IGNORECASE)
+        deadline_hint = deadline_match.group(1).strip().rstrip(".") if deadline_match else ""
+
+        if is_excluded(title) or is_excluded(full_text):
+            save_posted_link(item_url)
+            posted_links.add(item_url)
+            continue
+
+        items_found += 1
+        source_label = netloc.replace("www.", "") + " — джерело"
+        try:
+            resp = build_and_send("🎨", title, item_url, full_text, source_label,
+                                   posted_titles, posted_keywords,
+                                   deadline_hint=deadline_hint, strict_fallback=True)
+            if resp.status_code == 200:
+                save_posted_link(item_url)
+                posted_links.add(item_url)
+        except Exception as e:
+            print(f"[Colossal] ERROR {item_url}: {e}")
+        time.sleep(2)
+
+    print(f"[Colossal] Розібрано нових пунктів зі збірки: {items_found}")
+
+
+def run_colossal(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
+    feed = feedparser.parse(COLOSSAL_RSS)
+    if not feed.entries:
+        print("[Colossal] Немає записів")
+        return
+
+    for entry in feed.entries:
+        link = getattr(entry, "link", "")
+        if not link or link in posted_links:
+            continue
+        categories = [t.get("term", "").lower() for t in getattr(entry, "tags", [])]
+        if "opportunities" not in categories:
+            continue  # це не щомісячна збірка можливостей, а звичайна стаття Colossal
+        print(f"[Colossal] Знайдено нову збірку можливостей: {link}")
+        process_colossal_digest(link, posted_links, posted_titles, posted_keywords)
+        save_posted_link(link)
+        posted_links.add(link)
+
+
+# ---------------------------------------------------------------------------
+# MONITOR WOLYNSKI (польсько-українські гранти/конкурси)
+# ---------------------------------------------------------------------------
+
+def run_monitor_wolynski(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
+    page = fetch_html(MONITOR_WOLYNSKI_URL)
+    if not page:
+        print("[Monitor Wolynski] Не вдалось завантажити категорію")
+        return
+
+    seen_urls, items = set(), []
+    for a in page.find_all("a", href=True):
+        href = a["href"]
+        if not re.search(r"/uk/news/\d+-", href):
+            continue
+        full_url = href if href.startswith("http") else "https://monitorwolynski.com" + href
+        text = a.get_text(strip=True)
+        if not text or full_url in seen_urls:
+            continue
+        seen_urls.add(full_url)
+        items.append((text, full_url))
+
+    print(f"[Monitor Wolynski] Знайдено {len(items)} записів на сторінці")
+
+    for title, link in items:
+        if link in posted_links:
+            continue
+        if is_excluded(title):
+            save_posted_link(link)
+            posted_links.add(link)
+            continue
+
+        article_page = fetch_html(link)
+        description = collect_paragraphs(article_page, min_len=40) if article_page else title
+        if not description:
+            description = title
+
+        source_url, source_label = (find_original_source_link(article_page, extra_skip_domains=("monitorwolynski",))
+                                     if article_page else (None, None))
+        if not source_url:
+            source_url, source_label = link, "Monitor Wolynski — джерело"
+
+        try:
+            resp = build_and_send("🎓", title, source_url, description, source_label,
+                                   posted_titles, posted_keywords, strict_fallback=True)
+            if resp.status_code == 200:
+                save_posted_link(link)
+                posted_links.add(link)
+        except Exception as e:
+            print(f"[Monitor Wolynski] ERROR {link}: {e}")
+        time.sleep(2)
+
+
+# ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
 
@@ -1871,6 +2017,8 @@ def main():
                           posted_keywords, google_alerts_counter, unresolved_social)
 
     run_opportunities_radar(posted_links, posted_titles, posted_keywords)
+    run_colossal(posted_links, posted_titles, posted_keywords)
+    run_monitor_wolynski(posted_links, posted_titles, posted_keywords)
 
     if unresolved_social:
         lines = [f"- {title}\n  {url}" for title, url in unresolved_social]
