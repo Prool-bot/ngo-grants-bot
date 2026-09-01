@@ -73,6 +73,13 @@ GOOGLE_ALERT_FEEDS = [
 # WordPress-стрічка, майже щоденні окремі пости (не збірки).
 OPPORTUNITIES_RADAR_RSS = "https://opportunitiesradar.com/feed/"
 
+# Пряма стрічка fundsforngos.org — раніше ми бачили цей сайт лише
+# непрямо (через Google Alerts, коли алерт випадково натрапляв на
+# /listing/-збірку). Це пропускало окремі /individuals/-сторінки, якщо
+# Google ще не проіндексував їх чи жоден алерт не збігся ключовими
+# словами. Пряма підписка на власну стрічку сайту закриває цю прогалину.
+FUNDSFORNGOS_RSS = "https://www2.fundsforngos.org/feed/"
+
 # Colossal публікує раз на місяць велику статтю-збірку можливостей для
 # митців. Використовуємо весь сайтовий фід і фільтруємо за категорією
 # "Opportunities" в коді, бо категорійний фід окремо не підтверджений.
@@ -466,11 +473,25 @@ AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гра�
   ✍️ журналістика/письмо, 📸 фото, 🌳 довкілля/дерева, 🏙 урбаністика,
   🎓 освіта, 🎨 мистецтво/культура, 💻 технології, ⚖️ права людини,
   💼 бізнес, 🏥 здоров'я, 🕊️ миробудування — або інший доречний варіант.
+- geography — це ГЕОГРАФІЯ УЧАСТІ (звідки можуть подаватись заявники),
+  а НЕ фізичне місце проведення програми/установи. Якщо в оригіналі
+  прямо НЕ вказано обмеження за громадянством/резиденцією заявника —
+  вважай, що це відкрито для будь-якої країни, і пиши "весь світ" (навіть
+  якщо сама програма/дослідження фізично відбувається в конкретному
+  місті чи країні — ЦЕ мова не про geography, а хіба про notes чи
+  application_requirements, якщо взагалі важливо). Приклад ПОМИЛКИ: якщо
+  постдок-позиція в Кембриджському університеті не має обмежень за
+  громадянством — geography = "весь світ", а НЕ "Велика Британія".
+  geography = конкретна країна/регіон ТІЛЬКИ якщо оригінал явно обмежує
+  коло заявників саме цією країною/регіоном.
 - ukraine_relevance — ОКРЕМЕ від notes поле: 1-2 речення про те, кому
   саме в Україні (яким організаціям/фахівцям/громадам) ця можливість
-  підходить і чому. Заповнюй завжди, коли можливість відкрита для
-  України (прямо, глобально, чи як асоційованого партнера). Якщо
-  можливість НЕ стосується України — залиш null.
+  підходить і чому. Заповнюй ЗАВЖДИ, коли geography = "весь світ" чи
+  Україна прямо названа, чи Україна асоційований партнер програми. НЕ
+  залишай null лише тому, що Україна не згадана прямо в оригіналі —
+  якщо немає явного обмеження громадянства, вважай можливість відкритою
+  і для України. null — лише коли geography явно обмежена іншою
+  конкретною країною/регіоном, що виключає Україну.
 - duration — тривалість самого проєкту/гранту після отримання
   (наприклад "до 1 року", "6 місяців"), якщо вказано в оригіналі.
   Це НЕ те саме, що дедлайн подачі заявки.
@@ -1859,6 +1880,60 @@ def run_opportunities_radar(posted_links: set, posted_titles: set, posted_keywor
 
 
 # ---------------------------------------------------------------------------
+# FUNDSFORNGOS.ORG — пряма стрічка (не тільки через Google Alerts)
+# ---------------------------------------------------------------------------
+
+def run_fundsforngos_feed(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
+    feed = feedparser.parse(FUNDSFORNGOS_RSS)
+    if not feed.entries:
+        print("[fundsforngos.org] Немає записів")
+        return
+    print(f"[fundsforngos.org] Знайдено {len(feed.entries)} записів")
+
+    counter = {"count": 0}  # свій лічильник, не спільний з Google Alerts
+    for entry in reversed(feed.entries):
+        link = getattr(entry, "link", "")
+        if not link or link in posted_links:
+            continue
+
+        title = clean_html_description(getattr(entry, "title", "") or "")
+        if is_excluded(title):
+            save_posted_link(link)
+            posted_links.add(link)
+            continue
+
+        if "/listing/" in link:
+            process_fundsforngos_listing(link, posted_links, posted_titles, posted_keywords, counter)
+            save_posted_link(link)
+            posted_links.add(link)
+            continue
+
+        # Окрема сторінка можливості (/individuals/, /ngos/ тощо)
+        page = fetch_html(link)
+        description = collect_paragraphs(page, min_len=80) if page else ""
+        if not description:
+            html = ""
+            if getattr(entry, "content", None):
+                html = entry.content[0].get("value", "")
+            description = clean_html_description(html or getattr(entry, "summary", "") or "") or title
+
+        source_url, source_label = (find_original_source_link(page, extra_skip_domains=("fundsforngos",))
+                                     if page else (None, None))
+        if not source_url:
+            source_url, source_label = link, "fundsforngos.org — джерело"
+
+        try:
+            resp = build_and_send("🌍", title, source_url, description, source_label,
+                                   posted_titles, posted_keywords, strict_fallback=True)
+            if resp.status_code == 200:
+                save_posted_link(link)
+                posted_links.add(link)
+        except Exception as e:
+            print(f"[fundsforngos.org] ERROR {link}: {e}")
+        time.sleep(2)
+
+
+# ---------------------------------------------------------------------------
 # COLOSSAL (щомісячна збірка можливостей для митців)
 # ---------------------------------------------------------------------------
 
@@ -2017,6 +2092,7 @@ def main():
                           posted_keywords, google_alerts_counter, unresolved_social)
 
     run_opportunities_radar(posted_links, posted_titles, posted_keywords)
+    run_fundsforngos_feed(posted_links, posted_titles, posted_keywords)
     run_colossal(posted_links, posted_titles, posted_keywords)
     run_monitor_wolynski(posted_links, posted_titles, posted_keywords)
 
