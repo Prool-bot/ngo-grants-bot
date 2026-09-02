@@ -85,6 +85,11 @@ FUNDSFORNGOS_RSS = "https://www2.fundsforngos.org/feed/"
 # "Opportunities" в коді, бо категорійний фід окремо не підтверджений.
 COLOSSAL_RSS = "https://www.thisiscolossal.com/feed/"
 
+# Hyperallergic — щомісячна БЕЗКОШТОВНА збірка можливостей для митців
+# (Ghost CMS). На відміну від Colossal, посилання не в заголовку, а
+# останнім у абзаці.
+HYPERALLERGIC_RSS = "https://hyperallergic.com/rss/"
+
 # Українсько-польське регіональне видання, категорія "Можливості"
 # (конкурси/гранти) — окремі статті, не збірка, пагінація не потрібна,
 # бо нові записи завжди зверху першої сторінки.
@@ -518,10 +523,15 @@ AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гра�
   тему грантів (навіть якщо каналом ведуться про гранти) — is_relevant=false.
 - is_relevant = false також для: тендерів і закупівель (пошук
   виконавця/підрядника/постачальника послуг чи товарів для проєкту —
-  це НЕ грант для читача, а замовлення роботи в когось); та для
-  реклами й крос-промоції сторонніх каналів, курсів, продуктів чи
-  сервісів, не пов'язаних напряму з отриманням гранту (навіть якщо
-  оформлено в стилі "закріплений пост", "переходьте за посиланням").
+  це НЕ грант для читача, а замовлення роботи в когось); реклами й
+  крос-промоції сторонніх каналів, курсів, продуктів чи сервісів, не
+  пов'язаних напряму з отриманням гранту (навіть якщо оформлено в
+  стилі "закріплений пост", "переходьте за посиланням"); а також
+  постів-подяк донорам/звітів про вже зібрані кошти чи вже отриману
+  допомогу (наприклад "дякуємо за дрони/техніку, зібрані завдяки
+  вашим внескам", звіт про використання зібраних коштів) — це НЕ
+  оголошення можливості подати заявку, а публічна подяка чи звіт,
+  навіть якщо згадується платформа збору коштів.
 - Стиль: стисло, по суті, українською, без markdown-розмітки (без **, ##,```)"""
 
 AI_RESPONSE_SCHEMA = {
@@ -2010,6 +2020,89 @@ def run_colossal(posted_links: set, posted_titles: set, posted_keywords: list) -
 
 
 # ---------------------------------------------------------------------------
+# HYPERALLERGIC (щомісячна безкоштовна збірка можливостей для митців)
+# ---------------------------------------------------------------------------
+
+def process_hyperallergic_digest(digest_url: str, posted_links: set,
+                                  posted_titles: set, posted_keywords: list) -> None:
+    """Схоже на Colossal, але посилання не в заголовку — беремо ОСТАННЄ
+    посилання абзацу (домен-посилання наприкінці опису), а не перше."""
+    page = fetch_html(digest_url)
+    if not page:
+        print(f"[Hyperallergic] Не вдалось завантажити збірку: {digest_url}")
+        return
+
+    items_found = 0
+    for p in page.find_all(["p", "li"]):
+        strong = p.find("strong")
+        if not strong:
+            continue
+        links = p.find_all("a", href=True)
+        if not links:
+            continue
+
+        item_url = links[-1]["href"].strip()
+        # Скорочувачі посилань (bit.ly тощо) розкриваємо до справжнього
+        # домену — інакше джерело показує "bit.ly", а не реальний сайт.
+        netloc = urlparse(item_url).netloc.lower()
+        if any(s in netloc for s in ("bit.ly", "tinyurl.com", "goo.gl", "t.co", "ow.ly")):
+            try:
+                resolved = requests.head(item_url, allow_redirects=True, timeout=10)
+                item_url = resolved.url
+                netloc = urlparse(item_url).netloc.lower()
+            except Exception:
+                pass
+        if not netloc or "hyperallergic" in netloc or is_social_media_url(item_url):
+            continue
+        if item_url in posted_links:
+            continue
+
+        title = strong.get_text(strip=True)
+        full_text = p.get_text(" ", strip=True)
+        deadline_match = re.search(r"Deadline[:\s]*([^|]+)", full_text, re.IGNORECASE)
+        deadline_hint = deadline_match.group(1).strip().rstrip(".") if deadline_match else ""
+
+        if is_excluded(title) or is_excluded(full_text):
+            save_posted_link(item_url)
+            posted_links.add(item_url)
+            continue
+
+        items_found += 1
+        source_label = netloc.replace("www.", "") + " — джерело"
+        try:
+            resp = build_and_send("🎨", title, item_url, full_text, source_label,
+                                   posted_titles, posted_keywords,
+                                   deadline_hint=deadline_hint, strict_fallback=True)
+            if resp.status_code == 200:
+                save_posted_link(item_url)
+                posted_links.add(item_url)
+        except Exception as e:
+            print(f"[Hyperallergic] ERROR {item_url}: {e}")
+        time.sleep(2)
+
+    print(f"[Hyperallergic] Розібрано нових пунктів зі збірки: {items_found}")
+
+
+def run_hyperallergic(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
+    feed = feedparser.parse(HYPERALLERGIC_RSS)
+    if not feed.entries:
+        print("[Hyperallergic] Немає записів")
+        return
+
+    for entry in feed.entries:
+        link = getattr(entry, "link", "")
+        if not link or link in posted_links:
+            continue
+        categories = [t.get("term", "").lower() for t in getattr(entry, "tags", [])]
+        if "opportunities" not in categories:
+            continue
+        print(f"[Hyperallergic] Знайдено нову збірку можливостей: {link}")
+        process_hyperallergic_digest(link, posted_links, posted_titles, posted_keywords)
+        save_posted_link(link)
+        posted_links.add(link)
+
+
+# ---------------------------------------------------------------------------
 # MONITOR WOLYNSKI (польсько-українські гранти/конкурси)
 # ---------------------------------------------------------------------------
 
@@ -2063,6 +2156,59 @@ def run_monitor_wolynski(posted_links: set, posted_titles: set, posted_keywords:
 
 
 # ---------------------------------------------------------------------------
+# UNDP UKRAINE (офіційна стрічка новин ПРООН в Україні)
+# ---------------------------------------------------------------------------
+
+UNDP_UKRAINE_NEWS_URL = "https://www.undp.org/uk/ukraine/news-centre"
+
+def run_undp_ukraine(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
+    """UNDP публікує багато новин, не лише гранти/набори — фільтр
+    is_relevant всередині build_and_send уже відсіює загальні
+    прес-релізи, тож можна сміливо брати всі записи зі стрічки."""
+    page = fetch_html(UNDP_UKRAINE_NEWS_URL)
+    if not page:
+        print("[UNDP Ukraine] Не вдалось завантажити стрічку новин")
+        return
+
+    seen_urls, items = set(), []
+    for a in page.find_all("a", href=True):
+        href = a["href"]
+        if not re.search(r"/uk/ukraine/news/[a-z0-9-]+", href):
+            continue
+        full_url = href if href.startswith("http") else "https://www.undp.org" + href
+        text = a.get_text(strip=True)
+        if not text or full_url in seen_urls:
+            continue
+        seen_urls.add(full_url)
+        items.append((text, full_url))
+
+    print(f"[UNDP Ukraine] Знайдено {len(items)} записів на сторінці")
+
+    for title, link in items:
+        if link in posted_links:
+            continue
+        if is_excluded(title):
+            save_posted_link(link)
+            posted_links.add(link)
+            continue
+
+        article_page = fetch_html(link)
+        description = collect_paragraphs(article_page, min_len=40) if article_page else ""
+        if not description:
+            description = title
+
+        try:
+            resp = build_and_send("🇺🇳", title, link, description, "UNDP Ukraine — джерело",
+                                   posted_titles, posted_keywords, strict_fallback=True)
+            if resp.status_code == 200:
+                save_posted_link(link)
+                posted_links.add(link)
+        except Exception as e:
+            print(f"[UNDP Ukraine] ERROR {link}: {e}")
+        time.sleep(2)
+
+
+# ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
 
@@ -2094,7 +2240,9 @@ def main():
     run_opportunities_radar(posted_links, posted_titles, posted_keywords)
     run_fundsforngos_feed(posted_links, posted_titles, posted_keywords)
     run_colossal(posted_links, posted_titles, posted_keywords)
+    run_hyperallergic(posted_links, posted_titles, posted_keywords)
     run_monitor_wolynski(posted_links, posted_titles, posted_keywords)
+    run_undp_ukraine(posted_links, posted_titles, posted_keywords)
 
     if unresolved_social:
         lines = [f"- {title}\n  {url}" for title, url in unresolved_social]
