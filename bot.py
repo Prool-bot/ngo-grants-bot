@@ -90,6 +90,11 @@ COLOSSAL_RSS = "https://www.thisiscolossal.com/feed/"
 # останнім у абзаці.
 HYPERALLERGIC_RSS = "https://hyperallergic.com/rss/"
 
+# Impact Funding — Substack-розсилка про гранти по секторах. ПЛАТНА:
+# з ~39 позицій у випуску безкоштовно доступні лише ~4, решта за
+# paywall. Додано свідомо навіть при частковому покритті.
+IMPACTFUNDING_RSS = "https://impactfunding.substack.com/feed"
+
 # Українсько-польське регіональне видання, категорія "Можливості"
 # (конкурси/гранти) — окремі статті, не збірка, пагінація не потрібна,
 # бо нові записи завжди зверху першої сторінки.
@@ -618,6 +623,7 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
         return fallback
     except Exception as e:
         print(f"[AI reformat failed] {source}: {e}")
+        fallback["_ai_failed"] = True
         return fallback
 
 def _bullets(items) -> str:
@@ -671,6 +677,32 @@ class _SkippedIrrelevant:
 _SKIP_SENTINELS = (_SkippedDuplicate, _SkippedIrrelevant)
 
 
+# Явні маркери "тільки для однієї конкретної країни/регіонального блоку,
+# що виключає Україну" — легка перевірка БЕЗ виклику AI, щоб економити
+# денну квоту Gemini (безкоштовний рівень — 20 запитів/добу) на записах,
+# де відмова майже гарантована. Найгірший сценарій — щось Україна-
+# прийнятне помилково відсіється тут; прийнятний компроміс заради
+# економії лічених запитів. НЕ вичерпний список — поповнюється за фактом.
+COUNTRY_RESTRICTED_PATTERNS = [
+    r"\bOIC member state",
+    r"\bOrganisation of Islamic Cooperation\b",
+    r"\bWB6\b",
+    r"\bADB (borrowing )?member countr",
+    r"\bASEAN member state",
+    r"\bAfrican Union member state",
+    r"\bSADC member state",
+    r"\bCARICOM\b",
+    r"\bcitizens? of [A-Z][a-zA-Z]+(?: [A-Z][a-zA-Z]+)? only\b",
+    r"\bnationals? of [A-Z][a-zA-Z]+(?: [A-Z][a-zA-Z]+)? only\b",
+    r"\bresidents? of [A-Z][a-zA-Z]+(?: [A-Z][a-zA-Z]+)? only\b",
+    r"\bopen only to [A-Z][a-zA-Z]+ (nationals|citizens|residents)\b",
+    r"\brestricted to [A-Z][a-zA-Z]+ (nationals|citizens|residents)\b",
+]
+
+def is_likely_country_restricted(text: str) -> bool:
+    return any(re.search(p, text, re.IGNORECASE) for p in COUNTRY_RESTRICTED_PATTERNS)
+
+
 def build_and_send(emoji: str, title: str, link: str, description: str,
                     source_label: str, posted_titles: set, posted_keywords: list,
                     deadline_hint: str = "", strict_fallback: bool = False) -> requests.Response:
@@ -684,10 +716,16 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         print(f"[{source_label}] Skipped (посилання на ШІ-чат, не на першоджерело): {title[:60]}")
         return _SkippedIrrelevant()
 
+    if strict_fallback and is_likely_country_restricted(f"{title} {description}"):
+        print(f"[{source_label}] Skipped (схоже, обмежено конкретною країною — без виклику AI): {title[:60]}")
+        return _SkippedIrrelevant()
+
     ai = reformat_post(f"{title}\n\n{description}", source_label, strict_fallback=strict_fallback)
 
     if not ai.get("is_relevant", True):
-        print(f"[{source_label}] Skipped (не грант/захід за визначенням AI): {title[:60]}")
+        reason = ("AI не відповів, ймовірно вичерпано денну квоту"
+                  if ai.get("_ai_failed") else "не грант/захід за визначенням AI")
+        print(f"[{source_label}] Skipped ({reason}): {title[:60]}")
         return _SkippedIrrelevant()
 
     if not ai.get("ukraine_eligible", True):
@@ -808,8 +846,12 @@ def fetch_html(url: str, timeout: int = 60, retries: int = 2):
         pass
     for attempt in range(retries):
         try:
-            resp = requests.get(url, timeout=timeout,
-                                headers={"User-Agent": "Mozilla/5.0 ngo-grants-bot/1.0"})
+            resp = requests.get(url, timeout=timeout, headers={
+                "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                               "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"),
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9,uk;q=0.8",
+            })
             resp.raise_for_status()
             return BeautifulSoup(resp.text, "html.parser")
         except Exception as e:
@@ -2023,13 +2065,14 @@ def run_colossal(posted_links: set, posted_titles: set, posted_keywords: list) -
 # HYPERALLERGIC (щомісячна безкоштовна збірка можливостей для митців)
 # ---------------------------------------------------------------------------
 
-def process_hyperallergic_digest(digest_url: str, posted_links: set,
-                                  posted_titles: set, posted_keywords: list) -> None:
-    """Схоже на Colossal, але посилання не в заголовку — беремо ОСТАННЄ
-    посилання абзацу (домен-посилання наприкінці опису), а не перше."""
+def process_trailing_link_digest(digest_url: str, own_domain: str, log_label: str,
+                                  posted_links: set, posted_titles: set,
+                                  posted_keywords: list) -> None:
+    """Спільний розбір для дайджестів, де посилання не в заголовку, а
+    ОСТАННІМ у абзаці (Hyperallergic, Impact Funding на Substack тощо)."""
     page = fetch_html(digest_url)
     if not page:
-        print(f"[Hyperallergic] Не вдалось завантажити збірку: {digest_url}")
+        print(f"[{log_label}] Не вдалось завантажити збірку: {digest_url}")
         return
 
     items_found = 0
@@ -2052,7 +2095,7 @@ def process_hyperallergic_digest(digest_url: str, posted_links: set,
                 netloc = urlparse(item_url).netloc.lower()
             except Exception:
                 pass
-        if not netloc or "hyperallergic" in netloc or is_social_media_url(item_url):
+        if not netloc or own_domain in netloc or is_social_media_url(item_url):
             continue
         if item_url in posted_links:
             continue
@@ -2077,10 +2120,10 @@ def process_hyperallergic_digest(digest_url: str, posted_links: set,
                 save_posted_link(item_url)
                 posted_links.add(item_url)
         except Exception as e:
-            print(f"[Hyperallergic] ERROR {item_url}: {e}")
+            print(f"[{log_label}] ERROR {item_url}: {e}")
         time.sleep(2)
 
-    print(f"[Hyperallergic] Розібрано нових пунктів зі збірки: {items_found}")
+    print(f"[{log_label}] Розібрано нових пунктів зі збірки: {items_found}")
 
 
 def run_hyperallergic(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
@@ -2097,7 +2140,30 @@ def run_hyperallergic(posted_links: set, posted_titles: set, posted_keywords: li
         if "opportunities" not in categories:
             continue
         print(f"[Hyperallergic] Знайдено нову збірку можливостей: {link}")
-        process_hyperallergic_digest(link, posted_links, posted_titles, posted_keywords)
+        process_trailing_link_digest(link, "hyperallergic", "Hyperallergic",
+                                      posted_links, posted_titles, posted_keywords)
+        save_posted_link(link)
+        posted_links.add(link)
+
+
+# ---------------------------------------------------------------------------
+# IMPACT FUNDING (Substack, платний — лише ~4 з 39 позицій доступні
+# безкоштовно на кожен випуск, решта за paywall)
+# ---------------------------------------------------------------------------
+
+def run_impactfunding(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
+    feed = feedparser.parse(IMPACTFUNDING_RSS)
+    if not feed.entries:
+        print("[Impact Funding] Немає записів")
+        return
+
+    for entry in feed.entries:
+        link = getattr(entry, "link", "")
+        if not link or link in posted_links:
+            continue
+        print(f"[Impact Funding] Знайдено новий випуск: {link}")
+        process_trailing_link_digest(link, "impactfunding.substack.com", "Impact Funding",
+                                      posted_links, posted_titles, posted_keywords)
         save_posted_link(link)
         posted_links.add(link)
 
@@ -2241,6 +2307,7 @@ def main():
     run_fundsforngos_feed(posted_links, posted_titles, posted_keywords)
     run_colossal(posted_links, posted_titles, posted_keywords)
     run_hyperallergic(posted_links, posted_titles, posted_keywords)
+    run_impactfunding(posted_links, posted_titles, posted_keywords)
     run_monitor_wolynski(posted_links, posted_titles, posted_keywords)
     run_undp_ukraine(posted_links, posted_titles, posted_keywords)
 
