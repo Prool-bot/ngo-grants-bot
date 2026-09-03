@@ -3412,3 +3412,8 @@ tg_grantovyphishky_8928
 tg_grants_here_2459
 tg_GrantUP_16666
 https://www2.fundsforngos.org/innovation/bbsrc-icure-explore-funding-for-innovation-and-customer-discovery-uk/
+https://www.prostir.ua/?grants=poshuk-postachalnyka-smartfona-z-profesijnoyu-systemoyu-kamer-dlya-ofisu-plan-interneshenal-ukrajina#0
+https://www.prostir.ua/?grants=konkurs-na-ozelenennya-hromad-u-mezhah-projektu-lisosmuhy-zhyttya#0
+tg_grantovyphishky_8929
+tg_GrantUP_16667
+https://www2.fundsforngos.org/individuals/applications-open-for-invisible-life-grant-programme/
