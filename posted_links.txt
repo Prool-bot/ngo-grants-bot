@@ -3584,3 +3584,8 @@ tg_grantsua_1656
 tg_GrantUP_16674
 https://developers.google.com/youtube
 https://developers.google.com/youtube
+http://gurt.org.ua/news/grants/112445/#0
+tg_grants_here_2462
+tg_GrantUP_16675
+https://developers.google.com/youtube
+https://developers.google.com/youtube
