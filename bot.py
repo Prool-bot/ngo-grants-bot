@@ -7,12 +7,13 @@ import feedparser
 import requests
 from urllib.parse import urlparse, parse_qs
 from bs4 import BeautifulSoup
-from google import genai
-from google.genai import types as genai_types
 
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# llama-3.3-70b-versatile — оптимальний баланс якості й безкоштовної квоти
+# на Groq (значно вища за поточний ліміт Gemini free tier, ~20 запитів/день).
+GROQ_MODEL = "llama-3.3-70b-versatile"
 POSTED_LINKS_FILE = "posted_links.txt"
 POSTED_TITLES_FILE = "posted_titles.txt"
 
@@ -575,16 +576,33 @@ AI_RESPONSE_SCHEMA = {
     "required": ["is_relevant", "title", "intro"],
 }
 
-_ai_client = None
+# Groq (на відміну від Gemini) не приймає JSON Schema окремим параметром —
+# лише response_format={"type":"json_object"}, який гарантує валідний JSON,
+# але не конкретний набір ключів. Тому опис полів додається текстом у
+# системний промпт, згенерований з тієї ж AI_RESPONSE_SCHEMA, щоб схема
+# лишалась єдиним джерелом правди й не розходилась при майбутніх правках.
+def _schema_to_prompt_hint(schema: dict) -> str:
+    lines = ["\n\nПоверни РІВНО один JSON-об'єкт (без тексту навколо, без markdown ```),",
+             "з такими ключами (null для незаповнених — ключ не можна пропускати):"]
+    required = set(schema.get("required", []))
+    for key, spec in schema["properties"].items():
+        kind = spec["type"]
+        if kind == "array":
+            kind = f"масив {spec['items']['type']}"
+        mark = " (обов'язково)" if key in required else ""
+        lines.append(f"- {key}: {kind}{mark}")
+    return "\n".join(lines)
 
-def _get_ai_client():
-    global _ai_client
-    if _ai_client is None:
-        _ai_client = genai.Client(api_key=GEMINI_API_KEY)
-    return _ai_client
+AI_SYSTEM_PROMPT_FULL = AI_SYSTEM_PROMPT + _schema_to_prompt_hint(AI_RESPONSE_SCHEMA)
+
 
 def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> dict:
-    """Переформатовує пост через Gemini.
+    """Переформатовує пост через Groq (llama-3.3-70b-versatile).
+
+    Перейшли з Gemini на Groq у 2026 р., коли Google різко урізав
+    безкоштовну квоту Flash-моделей до ~20 запитів/день — цього не
+    вистачало навіть на один прогін бота. Груба квота Groq на кілька
+    порядків вища для цього ж типу навантаження (багато дрібних запитів).
 
     При будь-якій помилці — fallback. Для перевірених 9 джерел (кожен
     запис там — уже підтверджений грант з довіреного сайту) fallback
@@ -604,21 +622,28 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
                 "decision_date": None, "notes": None, "ukraine_relevance": None,
                 "duration": None, "ukraine_eligible": True,
                 "extra_links": None}
-    if not GEMINI_API_KEY:
+    if not GROQ_API_KEY:
         return fallback
     try:
-        client = _get_ai_client()
-        resp = client.models.generate_content(
-            model="gemini-3.6-flash",
-            contents=f"Оригінальний пост (джерело: {source}):\n---\n{raw_text}\n---",
-            config=genai_types.GenerateContentConfig(
-                system_instruction=AI_SYSTEM_PROMPT,
-                response_mime_type="application/json",
-                response_schema=AI_RESPONSE_SCHEMA,
-                max_output_tokens=3072,
-            ),
+        resp = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}",
+                     "Content-Type": "application/json"},
+            json={
+                "model": GROQ_MODEL,
+                "messages": [
+                    {"role": "system", "content": AI_SYSTEM_PROMPT_FULL},
+                    {"role": "user", "content":
+                        f"Оригінальний пост (джерело: {source}):\n---\n{raw_text}\n---"},
+                ],
+                "response_format": {"type": "json_object"},
+                "max_tokens": 3072,
+                "temperature": 0.3,
+            },
+            timeout=30,
         )
-        data = json.loads(resp.text)
+        resp.raise_for_status()
+        data = json.loads(resp.json()["choices"][0]["message"]["content"])
         fallback.update({k: v for k, v in data.items() if v is not None})
         return fallback
     except Exception as e:
