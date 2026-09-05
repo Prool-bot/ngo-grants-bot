@@ -13,7 +13,7 @@ CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 # llama-3.3-70b-versatile — оптимальний баланс якості й безкоштовної квоти
 # на Groq (значно вища за поточний ліміт Gemini free tier, ~20 запитів/день).
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "openai/gpt-oss-120b"
 POSTED_LINKS_FILE = "posted_links.txt"
 POSTED_TITLES_FILE = "posted_titles.txt"
 
