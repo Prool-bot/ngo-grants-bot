@@ -624,32 +624,49 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
                 "extra_links": None}
     if not GROQ_API_KEY:
         return fallback
-    try:
-        resp = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}",
-                     "Content-Type": "application/json"},
-            json={
-                "model": GROQ_MODEL,
-                "messages": [
-                    {"role": "system", "content": AI_SYSTEM_PROMPT_FULL},
-                    {"role": "user", "content":
-                        f"Оригінальний пост (джерело: {source}):\n---\n{raw_text}\n---"},
-                ],
-                "response_format": {"type": "json_object"},
-                "max_tokens": 3072,
-                "temperature": 0.3,
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = json.loads(resp.json()["choices"][0]["message"]["content"])
-        fallback.update({k: v for k, v in data.items() if v is not None})
-        return fallback
-    except Exception as e:
-        print(f"[AI reformat failed] {source}: {e}")
-        fallback["_ai_failed"] = True
-        return fallback
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": [
+            {"role": "system", "content": AI_SYSTEM_PROMPT_FULL},
+            {"role": "user", "content":
+                f"Оригінальний пост (джерело: {source}):\n---\n{raw_text}\n---"},
+        ],
+        "response_format": {"type": "json_object"},
+        "max_tokens": 3072,
+        "temperature": 0.3,
+    }
+    # Groq free tier має ліміт запитів НА ХВИЛИНУ (RPM), не лише на день.
+    # При сплеску (наприклад, Google Alerts видав 15 нових записів за раз)
+    # можна впертись у нього навіть з паузою в 2с між постами. На відміну
+    # від вичерпання денної квоти (яку тут все одно не подолати), RPM-ліміт
+    # скидається за секунди — тому має сенс почекати й повторити, а не
+    # одразу здаватись на сирий текст.
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {GROQ_API_KEY}",
+                         "Content-Type": "application/json"},
+                json=payload,
+                timeout=30,
+            )
+            if resp.status_code == 429:
+                wait = int(resp.headers.get("Retry-After", 10 * (attempt + 1)))
+                print(f"[AI rate limit] {source}: 429, чекаю {wait}с "
+                      f"(спроба {attempt + 1}/{max_retries})")
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            data = json.loads(resp.json()["choices"][0]["message"]["content"])
+            fallback.update({k: v for k, v in data.items() if v is not None})
+            return fallback
+        except Exception as e:
+            print(f"[AI reformat failed] {source}: {e}")
+            fallback["_ai_failed"] = True
+            return fallback
+    fallback["_ai_failed"] = True
+    return fallback
 
 def _bullets(items) -> str:
     return "\n".join(f"• {it}" for it in items) if items else ""
