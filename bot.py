@@ -539,6 +539,15 @@ AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гра�
   без назви домену в тексті. Якщо не можеш сформулювати нічого
   змістовнішого за назву домену — залиш null (тоді буде використано
   запасний варіант із назвою домену).
+- extra_hashtags — 2-5 КОНКРЕТНИХ хештегів-слів (без символу #), що
+  описують саме цю можливість детальніше за широкі категорії каналу
+  (наприклад: OpenCall, фотографи, дизайнери, аніматори, митці,
+  стипендія, стажування — залежно від суті). Не повторюй тут широкі
+  категорії каналу (культура, ГО, наука, освіта, бізнес, медіа,
+  екологія, молодь, ветерани, відновлення, Україна) — вони додаються
+  окремою системою автоматично, це поле лише для додаткової
+  конкретики. Кожне слово без пробілів (для "open call" пиши
+  "OpenCall" одним словом). Залиш null, якщо додати нічого змістовного.
   (форма подання, детальна сторінка умов тощо). НЕ включай туди основне
   посилання на джерело — воно додається окремо. Ніколи не обривай URL.
 - Списки (funding, audience, supported, evaluation_criteria,
@@ -606,6 +615,7 @@ AI_RESPONSE_SCHEMA = {
         "duration": {"type": "string", "nullable": True},
         "ukraine_eligible": {"type": "boolean"},
         "source_link_label": {"type": "string", "nullable": True},
+        "extra_hashtags": {"type": "array", "items": {"type": "string"}, "nullable": True},
         "extra_links": {
             "type": "array",
             "nullable": True,
@@ -887,6 +897,20 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
     hashtags = generate_hashtags(final_title, body_for_hashtags)
     if "#Україна" not in hashtags and "#україна" not in hashtags.lower():
         hashtags = (hashtags + " #Україна").strip()
+
+    # Конкретні AI-хештеги — окремий шар ПОВЕРХ системи фільтрів каналу
+    # (яка лишається незмінною, бо задокументована для підписників у
+    # закріпленому пості). Санітизуємо: лише буквено-цифрові символи,
+    # без пробілів, не дублюємо вже наявні широкі категорії/#Україна,
+    # максимум 5 штук про запас (AI просили 2-5, але подвір'я не зайве).
+    existing_lower = hashtags.lower()
+    extra_tags = []
+    for raw in (ai.get("extra_hashtags") or [])[:5]:
+        clean = re.sub(r"[^\w]", "", str(raw), flags=re.UNICODE)
+        if clean and f"#{clean.lower()}" not in existing_lower:
+            extra_tags.append(f"#{clean}")
+    if extra_tags:
+        hashtags = (hashtags + " " + " ".join(extra_tags)).strip()
 
     reserved = len(header) + len(links_block) + (len(hashtags) + 4 if hashtags else 0) + 20
     budget = 4000 - reserved  # запас нижче ліміту Telegram у 4096
