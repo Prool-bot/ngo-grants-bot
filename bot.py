@@ -418,13 +418,13 @@ def is_semantic_duplicate(title: str, posted_keywords: list, threshold: int = 2)
     return False
 
 
-def send_telegram_message(message: str) -> requests.Response:
+def send_telegram_message(message: str, disable_preview: bool = False) -> requests.Response:
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     return requests.post(url, data={
         "chat_id": CHAT_ID,
         "text": message,
         "parse_mode": "HTML",
-        "disable_web_page_preview": False,
+        "disable_web_page_preview": disable_preview,
     })
 
 
@@ -515,6 +515,30 @@ AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гра�
   ukraine_eligible = true. При будь-якому сумніві — true, а не false:
   краще зайва публікація, ніж втрачена можливість.
 - extra_links — тільки URL, які буквально присутні в оригінальному тексті
+- eligible_categories — ТИПИ РОБІТ/ДИСЦИПЛІНИ/ЖАНРИ, які приймаються на
+  конкурс (наприклад: живопис, фотографія, скульптура, UI/UX design,
+  filmmaking, 2D/3D animation — для творчих конкурсів; або: соціальні
+  проєкти, освітні ініціативи, дослідження клімату — для грантів).
+  ВІДМІННІСТЬ від supported: eligible_categories — це ЩО за напрямом
+  роботи приймають (жанр/дисципліна автора), а supported — на ЩО можна
+  витратити отримані гроші (обладнання, зарплата, оренда тощо). Не
+  плутати ці два поля. Залиш null, якщо конкурс не ділиться на напрями.
+- application_fee — вступний внесок за подачу заявки, якщо він є, з
+  сумою і валютою (наприклад "$30", "€15, ранній тариф $20 вже
+  завершився"). Це ОКРЕМЕ поле від funding (funding — скільки дають
+  переможцю, application_fee — скільки коштує САМА ПОДАЧА заявки).
+  Якщо в тексті є явна вказівка на можливість fee waiver (звільнення
+  від внеску для тих, кому це фінансово важко) — додай це до цього ж
+  поля одним реченням. Залиш null, якщо подача безкоштовна або внесок
+  не згадується.
+- source_link_label — короткий, людяний підпис для головного посилання
+  на джерело (замість голого домену типу "tezu.ernet.in"), який
+  описує, куди саме веде посилання: наприклад "Офіційна сторінка
+  конкурсу та подача", "Форма заявки", "Сторінка гранту на сайті
+  організації", "Опис програми". Формулюй стисло (3-6 слів), українською,
+  без назви домену в тексті. Якщо не можеш сформулювати нічого
+  змістовнішого за назву домену — залиш null (тоді буде використано
+  запасний варіант із назвою домену).
   (форма подання, детальна сторінка умов тощо). НЕ включай туди основне
   посилання на джерело — воно додається окремо. Ніколи не обривай URL.
 - Списки (funding, audience, supported, evaluation_criteria,
@@ -538,6 +562,25 @@ AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гра�
   вашим внескам", звіт про використання зібраних коштів) — це НЕ
   оголошення можливості подати заявку, а публічна подяка чи звіт,
   навіть якщо згадується платформа збору коштів.
+- is_relevant = false також для звичайних оплачуваних вакансій/трудових
+  посад (штатна робота, контракт на найм працівника з зарплатнею за
+  виконання обов'язків в організації) — НАВІТЬ якщо в назві позиції є
+  слово "Fellowship", "Grant" чи подібне. Головний критерій — СУТЬ, а не
+  слово в назві: читач отримує гроші як грант/стипендію на СВОЮ
+  ініціативу/дослідження/навчання (is_relevant може бути true), чи як
+  зарплату за виконання посадових обов'язків в штаті чужої організації
+  (is_relevant = false, це вакансія, навіть якщо назва позиції звучить
+  як грантова програма). Приклад: "Sports Journalism Fellowship —
+  Technical/Production Director" з обов'язками типу "встановити
+  обладнання для трансляції" — це посада найму, а не грант, is_relevant
+  = false.
+- is_relevant = false також, якщо реальний зміст можливості розкритий
+  лише у відео чи зображенні (наприклад "дивіться деталі у відео", "умови
+  озвучені в ролику"), а текст джерела НЕ містить жодної конкретики —
+  ні суми, ні дедлайну, ні критеріїв, ні порядку подачі заявки. Такий
+  пост неможливо корисно переказати текстом, і is_relevant/ukraine_relevance
+  ніколи не варто "дотягувати" загальними фразами замість реальних фактів
+  із джерела.
 - Стиль: стисло, по суті, українською, без markdown-розмітки (без **, ##,```)"""
 
 AI_RESPONSE_SCHEMA = {
@@ -553,6 +596,8 @@ AI_RESPONSE_SCHEMA = {
         "audience": {"type": "array", "items": {"type": "string"}, "nullable": True},
         "audience_excluded": {"type": "string", "nullable": True},
         "supported": {"type": "array", "items": {"type": "string"}, "nullable": True},
+        "eligible_categories": {"type": "array", "items": {"type": "string"}, "nullable": True},
+        "application_fee": {"type": "string", "nullable": True},
         "evaluation_criteria": {"type": "array", "items": {"type": "string"}, "nullable": True},
         "application_requirements": {"type": "array", "items": {"type": "string"}, "nullable": True},
         "decision_date": {"type": "string", "nullable": True},
@@ -560,6 +605,7 @@ AI_RESPONSE_SCHEMA = {
         "ukraine_relevance": {"type": "string", "nullable": True},
         "duration": {"type": "string", "nullable": True},
         "ukraine_eligible": {"type": "boolean"},
+        "source_link_label": {"type": "string", "nullable": True},
         "extra_links": {
             "type": "array",
             "nullable": True,
@@ -803,6 +849,8 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         sections.append((1, "\n".join(meta)))
     if ai.get("funding"):
         sections.append((2, "💰 <b>Фінансування:</b>\n" + _bullets(ai["funding"])))
+    if ai.get("application_fee"):
+        sections.append((2, f"💵 <b>Вступний внесок:</b> {ai['application_fee']}"))
     if ai.get("audience"):
         block = "👥 <b>Хто може податися:</b>\n" + _bullets(ai["audience"])
         if ai.get("audience_excluded"):
@@ -810,6 +858,8 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         sections.append((2, block))
     if ai.get("ukraine_relevance"):
         sections.append((2, f"🇺🇦 {ai['ukraine_relevance']}"))
+    if ai.get("eligible_categories"):
+        sections.append((3, "🎨 <b>Допустимі напрями:</b>\n" + _bullets(ai["eligible_categories"])))
     if ai.get("supported"):
         sections.append((3, "💡 <b>Що підтримується:</b>\n" + _bullets(ai["supported"])))
     if ai.get("decision_date"):
@@ -823,7 +873,8 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
     if ai.get("notes"):
         sections.append((5, ai["notes"]))
 
-    links_block = f"🔗 <a href=\"{link}\">{source_label}</a>"
+    main_link_label = ai.get("source_link_label") or source_label
+    links_block = f"🔗 <a href=\"{link}\">{main_link_label}</a>"
     for l in (ai.get("extra_links") or []):
         url, label = l.get("url"), l.get("label")
         if url and label:
@@ -851,7 +902,14 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         parts.append(hashtags)
     msg = _dedupe_paragraphs("\n\n".join(parts))
 
-    resp = send_telegram_message(msg)
+    # Пряме посилання на файл (PDF/DOC/DOCX тощо) замість вебсторінки —
+    # Telegram рендерить це як файлову картку "назва.pdf, 72.7 KB", яка
+    # виглядає геть інакше за звичне прев'ю сторінки і виламується з
+    # усталеного вигляду каналу. Вимикаємо прев'ю саме для таких постів.
+    is_file_link = link.split("?")[0].lower().endswith(
+        (".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"))
+
+    resp = send_telegram_message(msg, disable_preview=is_file_link)
     print(resp.text)
     if resp.status_code == 200:
         save_title_hash(final_title, posted_titles, posted_keywords)
@@ -1111,7 +1169,9 @@ def run_chaszmin(posted_links: set, posted_titles: set, posted_keywords: list) -
         print(f"[chaszmin] Processing: {title}")
         try:
             msg = process_chaszmin_entry(title, link)
-            resp = send_telegram_message(msg)
+            is_file_link = link.split("?")[0].lower().endswith(
+                (".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"))
+            resp = send_telegram_message(msg, disable_preview=is_file_link)
             print(resp.text)
             if resp.status_code == 200:
                 save_posted_link(link)
