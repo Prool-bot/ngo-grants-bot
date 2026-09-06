@@ -2448,7 +2448,12 @@ def main():
     run_hyperallergic(posted_links, posted_titles, posted_keywords)
     run_impactfunding(posted_links, posted_titles, posted_keywords)
     run_monitor_wolynski(posted_links, posted_titles, posted_keywords)
-    run_undp_ukraine(posted_links, posted_titles, posted_keywords)
+    # run_undp_ukraine() вимкнено: undp.org захищений WAF (Cloudflare/Akamai),
+    # що блокує запити з хмарних IP GitHub Actions незалежно від заголовків —
+    # кожен прогін лише витрачав час на 403 і засмічував лог. Функція лишається
+    # в коді нижче — можна повернути одним рядком, якщо колись з'явиться
+    # робочий обхід (headless-браузер, RSS, зміна політики WAF тощо).
+    # run_undp_ukraine(posted_links, posted_titles, posted_keywords)
 
     if unresolved_social:
         lines = [f"- {title}\n  {url}" for title, url in unresolved_social]
