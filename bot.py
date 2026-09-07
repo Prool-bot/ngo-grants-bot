@@ -106,7 +106,7 @@ MONITOR_WOLYNSKI_URL = "https://monitorwolynski.com/uk/categories/konkursy"
 # Коли Google Alert приводить на будь-який із цих доменів, бот заходить
 # на сторінку й шукає СПРАВЖНЄ джерело всередині, а не публікує сам блог
 # як джерело. Список поповнюється в міру виявлення нових таких сайтів.
-KNOWN_AGGREGATOR_DOMAINS = ("fundsforngos", "opportunitiesradar", "globalsouthopportunities", "vacancyedu")
+KNOWN_AGGREGATOR_DOMAINS = ("fundsforngos", "opportunitiesradar", "globalsouthopportunities", "vacancyedu", "opportunitiesforyouth")
 
 # ---------------------------------------------------------------------------
 # ФІЛЬТРИ
@@ -1974,22 +1974,24 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
                     continue
                 real_url, netloc_source = found_url, found_label
         else:
-            netloc_check = urlparse(real_url).netloc.lower()
-            if any(d in netloc_check for d in KNOWN_AGGREGATOR_DOMAINS):
-                # Це сайт-блог/агрегатор (типу fundsforngos.org,
-                # opportunitiesradar.com, globalsouthopportunities.com) —
-                # сам по собі НЕ першоджерело. Заходимо на сторінку й
-                # шукаємо справжнє посилання на сайт донора/фонду.
-                agg_page = fetch_html(real_url)
-                found_url, found_label = (find_original_source_link(agg_page, extra_skip_domains=KNOWN_AGGREGATOR_DOMAINS)
-                                           if agg_page else (None, None))
-                if found_url:
-                    real_url, netloc_source = found_url, found_label
-                    fuller = collect_paragraphs(agg_page, min_len=100) if agg_page else ""
-                    if fuller:
-                        description = fuller
-                else:
-                    netloc_source = None
+            # Універсальний пошук першоджерела для БУДЬ-ЯКОГО сайту, не
+            # лише зі списку KNOWN_AGGREGATOR_DOMAINS. Раніше нові
+            # агрегатори (типу opportunitiesforyouth.org) доводилось
+            # виявляти вручну після того, як хибне посилання вже
+            # опублікувалось, і щоразу дописувати домен у список.
+            # Свідомий компроміс: іноді це може підмінити ПРАВИЛЬНЕ
+            # посилання на справжньому першоджерелі випадковим вихідним
+            # посиланням із тексту сторінки (банер партнера, related-
+            # стаття тощо) — знайти й опублікувати першоджерело для
+            # невідомого агрегатора важливіше за цей рідший ризик.
+            agg_page = fetch_html(real_url)
+            found_url, found_label = (find_original_source_link(agg_page, extra_skip_domains=KNOWN_AGGREGATOR_DOMAINS)
+                                       if agg_page else (None, None))
+            if found_url:
+                real_url, netloc_source = found_url, found_label
+                fuller = collect_paragraphs(agg_page, min_len=100) if agg_page else ""
+                if fuller:
+                    description = fuller
             else:
                 netloc_source = None
 
