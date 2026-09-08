@@ -14,6 +14,17 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 # llama-3.3-70b-versatile — оптимальний баланс якості й безкоштовної квоти
 # на Groq (значно вища за поточний ліміт Gemini free tier, ~20 запитів/день).
 GROQ_MODEL = "openai/gpt-oss-120b"
+
+# Щойно один виклик Groq повертає 429 з довгим Retry-After (ознака
+# вичерпаної ДЕННОЇ квоти, не короткого RPM-сплеску) — цей прапорець
+# піднімається на РЕШТУ поточного прогону. Без нього кожен наступний
+# пост із "довірених" джерел (strict_fallback=False) публікувався б
+# сирим текстом і БЕЗ перевірки релевантності — нормально для одного
+# випадкового збою, але коли AI недоступний систематично цілий день,
+# це перетворює "зайвий пост замість втраченого гранту" на потік
+# нерелевантного сміття (списки переможців, експертні ради, історії
+# про менеджмент — усе, що AI мав би відфільтрувати, але не встиг).
+_ai_quota_exhausted_this_run = False
 POSTED_LINKS_FILE = "posted_links.txt"
 POSTED_TITLES_FILE = "posted_titles.txt"
 
@@ -683,8 +694,19 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
     що взагалі не про гранти) той самий збій AI натомість пропускає
     публікацію (is_relevant=False) — тут ризик засмітити канал вищий за
     ризик пропустити один грант, який і так, найімовірніше, повториться
-    в наступному прогоні алерта."""
-    fallback = {"is_relevant": not strict_fallback, "emoji": None, "title": None,
+    в наступному прогоні алерта.
+
+    Якщо цього прогону вже виявлено вичерпану денну квоту (глобальний
+    прапорець _ai_quota_exhausted_this_run) — strict-режим вмикається
+    ПРИМУСОВО для ВСІХ джерел, незалежно від їхнього власного
+    strict_fallback. Одна вичерпана квота означає, що AI вже не
+    відповість на жоден із решти постів цього прогону — тож "краще
+    зайвий пост" перестає бути правильним компромісом і перетворюється
+    на потік нефільтрованого сміття (списки переможців, адмінтексти,
+    зовсім не про гранти)."""
+    global _ai_quota_exhausted_this_run
+    effective_strict = strict_fallback or _ai_quota_exhausted_this_run
+    fallback = {"is_relevant": not effective_strict, "emoji": None, "title": None,
                 "intro": raw_text, "deadline": None, "geography": None, "funding": None,
                 "audience": None, "audience_excluded": None, "supported": None,
                 "evaluation_criteria": None, "application_requirements": None,
@@ -692,6 +714,11 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
                 "duration": None, "ukraine_eligible": True,
                 "extra_links": None}
     if not GROQ_API_KEY:
+        return fallback
+    if _ai_quota_exhausted_this_run:
+        # Не витрачаємо навіть одну спробу — вже знаємо, що квота
+        # вичерпана до кінця цього прогону.
+        fallback["_ai_failed"] = True
         return fallback
     payload = {
         "model": GROQ_MODEL,
@@ -734,7 +761,9 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
                 if raw_wait > MAX_WAIT:
                     print(f"[AI rate limit] {source}: 429, сервер просить "
                           f"{raw_wait}с — це схоже на вичерпану денну квоту, "
-                          f"а не короткий сплеск. Не чекаю, одразу fallback.")
+                          f"а не короткий сплеск. Не чекаю, одразу fallback, "
+                          f"і вмикаю строгий режим для решти прогону.")
+                    _ai_quota_exhausted_this_run = True
                     break
                 print(f"[AI rate limit] {source}: 429, чекаю {raw_wait}с "
                       f"(спроба {attempt + 1}/{max_retries})")
