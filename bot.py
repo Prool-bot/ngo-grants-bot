@@ -710,6 +710,15 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
     # від вичерпання денної квоти (яку тут все одно не подолати), RPM-ліміт
     # скидається за секунди — тому має сенс почекати й повторити, а не
     # одразу здаватись на сирий текст.
+    #
+    # КРИТИЧНО: Retry-After від Groq при вичерпаній ДЕННІЙ (не хвилинній)
+    # квоті може бути тисячі секунд (до скидання ліміту) — сліпе очікування
+    # на це значення зависало весь прогін бота на 20-40+ хвилин на одному
+    # пості, блокуючи чергу GitHub Actions на години. Тому чекаємо не
+    # більше MAX_WAIT секунд — якщо сервер просить довше, це означає
+    # "квоту сьогодні вже не відновити", і краще одразу впасти у fallback,
+    # ніж зависнути.
+    MAX_WAIT = 30
     max_retries = 3
     for attempt in range(max_retries):
         try:
@@ -721,10 +730,15 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
                 timeout=30,
             )
             if resp.status_code == 429:
-                wait = int(resp.headers.get("Retry-After", 10 * (attempt + 1)))
-                print(f"[AI rate limit] {source}: 429, чекаю {wait}с "
+                raw_wait = int(resp.headers.get("Retry-After", 10 * (attempt + 1)))
+                if raw_wait > MAX_WAIT:
+                    print(f"[AI rate limit] {source}: 429, сервер просить "
+                          f"{raw_wait}с — це схоже на вичерпану денну квоту, "
+                          f"а не короткий сплеск. Не чекаю, одразу fallback.")
+                    break
+                print(f"[AI rate limit] {source}: 429, чекаю {raw_wait}с "
                       f"(спроба {attempt + 1}/{max_retries})")
-                time.sleep(wait)
+                time.sleep(raw_wait)
                 continue
             resp.raise_for_status()
             data = json.loads(resp.json()["choices"][0]["message"]["content"])
