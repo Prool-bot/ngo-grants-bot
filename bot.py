@@ -816,13 +816,25 @@ def is_likely_country_restricted(text: str) -> bool:
 
 def build_and_send(emoji: str, title: str, link: str, description: str,
                     source_label: str, posted_titles: set, posted_keywords: list,
-                    deadline_hint: str = "", strict_fallback: bool = False) -> requests.Response:
+                    posted_links: set, deadline_hint: str = "", strict_fallback: bool = False) -> requests.Response:
     """Єдина точка виходу: AI-розбір на секції → фільтр релевантності →
     stage-2 дедуп на нормалізованому заголовку → збірка HTML-повідомлення →
     надсилання. Довгі секції (notes, критерії, вимоги) відкидаються першими,
     якщо повідомлення не влазить у ліміт Telegram (4096 симв.).
     strict_fallback=True — для шумних джерел (Google Alerts): якщо AI
-    впаде, пост НЕ публікується (замість публікації сирого тексту)."""
+    впаде, пост НЕ публікується (замість публікації сирого тексту).
+
+    posted_links перевіряється ТУТ, а не лише в кожного виклику окремо,
+    бо на момент виклику `link` — це вже РЕЗОЛЬВЛЕНЕ першоджерело (після
+    find_original_source_link у викликача), а не сира адреса з фіда.
+    Різні агрегатори/канали часто цитують той самий грант з різними
+    сирими URL, які лише ПІСЛЯ резолюції збігаються — рання перевірка
+    на сирому лінку (в самому циклі джерела) цього не ловить, звідси й
+    були повтори того самого гранту з кількох українських джерел."""
+    if link in posted_links:
+        print(f"[{source_label}] Skipped (дубль після резолюції першоджерела): {title[:60]}")
+        return _SkippedIrrelevant()
+
     if is_ai_chat_share_url(link):
         print(f"[{source_label}] Skipped (посилання на ШІ-чат, не на першоджерело): {title[:60]}")
         return _SkippedIrrelevant()
@@ -1273,7 +1285,7 @@ def run_simple_source(rss_url: str, source_label: str, posted_links: set,
             print(f"[{source_label}] Processing: {item_title}")
             try:
                 resp = build_and_send("📌", item_title, link, item_text, source_label,
-                                       posted_titles, posted_keywords)
+                                       posted_titles, posted_keywords, posted_links)
                 if resp.status_code == 200:
                     save_posted_link(item_key)
                     posted_links.add(item_key)
@@ -1324,7 +1336,7 @@ def run_isar(posted_links: set, posted_titles: set, posted_keywords: list) -> No
                 description = title
             print(f"[ІСАР] Processing: {title}")
             resp = build_and_send("📌", title, link, description, "ІСАР Єднання — джерело",
-                                   posted_titles, posted_keywords, deadline_hint=deadline_str)
+                                   posted_titles, posted_keywords, posted_links, deadline_hint=deadline_str)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
@@ -1406,7 +1418,7 @@ def run_irf(posted_links: set, posted_titles: set, posted_keywords: list) -> Non
             if not description:
                 description = title
             resp = build_and_send("📌", title, link, description, "МФ «Відродження» — джерело",
-                                   posted_titles, posted_keywords, deadline_hint=deadline_str)
+                                   posted_titles, posted_keywords, posted_links, deadline_hint=deadline_str)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
@@ -1474,7 +1486,7 @@ def run_ucf(posted_links: set, posted_titles: set, posted_keywords: list) -> Non
                 description = title
             print(f"[УКФ] Processing: {title[:60]}")
             resp = build_and_send("🎨", title, link, description, "УКФ — джерело",
-                                   posted_titles, posted_keywords, deadline_hint=deadline_str)
+                                   posted_titles, posted_keywords, posted_links, deadline_hint=deadline_str)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
@@ -1563,7 +1575,7 @@ def run_veteranfund(posted_links: set, posted_titles: set, posted_keywords: list
                 description = title
             print(f"[ВФ] Processing: {title[:60]}")
             resp = build_and_send("🎖", title, link, description, "Ветеранський фонд — джерело",
-                                   posted_titles, posted_keywords, deadline_hint=deadline_str)
+                                   posted_titles, posted_keywords, posted_links, deadline_hint=deadline_str)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
@@ -1624,7 +1636,7 @@ def run_umf(posted_links: set, posted_titles: set, posted_keywords: list) -> Non
                 description = title
             print(f"[УМФ] Processing: {title[:60]}")
             resp = build_and_send("🌱", title, link, description, "УМФ — джерело",
-                                   posted_titles, posted_keywords, deadline_hint=deadline_str)
+                                   posted_titles, posted_keywords, posted_links, deadline_hint=deadline_str)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
@@ -1716,7 +1728,7 @@ def run_tg_channel(username: str, channel_name: str,
         try:
             response = build_and_send("📌", first_line, source_url, text,
                                        source_label,
-                                       posted_titles, posted_keywords, deadline_hint=deadline)
+                                       posted_titles, posted_keywords, posted_links, deadline_hint=deadline)
             if response.status_code == 200:
                 save_posted_link(item_key)
                 posted_links.add(item_key)
@@ -1883,7 +1895,7 @@ def process_fundsforngos_listing(digest_url: str, posted_links: set,
         try:
             resp = build_and_send("🌍", title, source_url, description,
                                    source_label,
-                                   posted_titles, posted_keywords,
+                                   posted_titles, posted_keywords, posted_links,
                                    deadline_hint=deadline_hint, strict_fallback=True)
             if resp.status_code == 200:
                 save_posted_link(item_url)
@@ -2009,7 +2021,7 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
 
         try:
             resp = build_and_send("🌍", raw_title, real_url, description, source_label,
-                                   posted_titles, posted_keywords, strict_fallback=True)
+                                   posted_titles, posted_keywords, posted_links, strict_fallback=True)
             if resp.status_code == 200:
                 save_posted_link(real_url)
                 posted_links.add(real_url)
@@ -2063,7 +2075,7 @@ def run_opportunities_radar(posted_links: set, posted_titles: set, posted_keywor
 
         try:
             resp = build_and_send("🌍", raw_title, source_url, description, source_label,
-                                   posted_titles, posted_keywords, strict_fallback=True)
+                                   posted_titles, posted_keywords, posted_links, strict_fallback=True)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
@@ -2117,7 +2129,7 @@ def run_fundsforngos_feed(posted_links: set, posted_titles: set, posted_keywords
 
         try:
             resp = build_and_send("🌍", title, source_url, description, source_label,
-                                   posted_titles, posted_keywords, strict_fallback=True)
+                                   posted_titles, posted_keywords, posted_links, strict_fallback=True)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
@@ -2171,7 +2183,7 @@ def process_colossal_digest(digest_url: str, posted_links: set,
         source_label = netloc.replace("www.", "") + " — джерело"
         try:
             resp = build_and_send("🎨", title, item_url, full_text, source_label,
-                                   posted_titles, posted_keywords,
+                                   posted_titles, posted_keywords, posted_links,
                                    deadline_hint=deadline_hint, strict_fallback=True)
             if resp.status_code == 200:
                 save_posted_link(item_url)
@@ -2255,7 +2267,7 @@ def process_trailing_link_digest(digest_url: str, own_domain: str, log_label: st
         source_label = netloc.replace("www.", "") + " — джерело"
         try:
             resp = build_and_send("🎨", title, item_url, full_text, source_label,
-                                   posted_titles, posted_keywords,
+                                   posted_titles, posted_keywords, posted_links,
                                    deadline_hint=deadline_hint, strict_fallback=True)
             if resp.status_code == 200:
                 save_posted_link(item_url)
@@ -2353,7 +2365,7 @@ def run_monitor_wolynski(posted_links: set, posted_titles: set, posted_keywords:
 
         try:
             resp = build_and_send("🎓", title, source_url, description, source_label,
-                                   posted_titles, posted_keywords, strict_fallback=True)
+                                   posted_titles, posted_keywords, posted_links, strict_fallback=True)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
@@ -2406,7 +2418,7 @@ def run_undp_ukraine(posted_links: set, posted_titles: set, posted_keywords: lis
 
         try:
             resp = build_and_send("🇺🇳", title, link, description, "UNDP Ukraine — джерело",
-                                   posted_titles, posted_keywords, strict_fallback=True)
+                                   posted_titles, posted_keywords, posted_links, strict_fallback=True)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
