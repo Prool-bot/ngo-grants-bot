@@ -1863,16 +1863,47 @@ def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
     й дивимось, куди вона веде далі. Ігнорує посилання на сам сайт-джерело
     (fundsforngos + будь-що з extra_skip_domains) і на соцмережі/ШІ-чати.
     Повертає (url, назва_джерела) або (None, None), якщо не знайдено."""
-    content = page.find("div", class_=re.compile(r"entry-content|post-content|content", re.I)) or page
     skip_own = ("fundsforngos",) + extra_skip_domains
-    for a in content.find_all("a", href=True):
-        href = a["href"]
-        netloc = urlparse(href).netloc.lower()
-        if not netloc or any(d in netloc for d in skip_own) or is_social_media_url(href) or is_ai_chat_share_url(href):
-            continue
-        label = netloc.replace("www.", "") + " — джерело"
-        return href, label
-    return None, None
+
+    # Власний домен сторінки — з <link rel="canonical"> чи <meta og:url>,
+    # якщо є. Без цього fallback на всю сторінку (нижче) міг би підхопити
+    # звичайне навігаційне посилання "На головну" й підмінити конкретну
+    # статтю просто на домашню сторінку того ж сайту — це не першоджерело,
+    # а крок НАЗАД у якості порівняно з уже наявною адресою статті.
+    canonical = page.find("link", rel="canonical") or page.find("meta", property="og:url")
+    self_url = (canonical.get("href") or canonical.get("content")) if canonical else None
+    if self_url:
+        self_domain = urlparse(self_url).netloc.lower().replace("www.", "")
+        if self_domain:
+            skip_own = skip_own + (self_domain,)
+
+    def _scan(scope):
+        for a in scope.find_all("a", href=True):
+            href = a["href"]
+            netloc = urlparse(href).netloc.lower()
+            path = urlparse(href).path.lower()
+            if not netloc or any(d in netloc for d in skip_own) or is_social_media_url(href) or is_ai_chat_share_url(href):
+                continue
+            if path.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")):
+                # Пряме посилання на файл картинки — майже завжди це
+                # обгортка навколо featured-зображення статті (клік
+                # відкриває фото в повний розмір), а не справжнє джерело.
+                continue
+            label = netloc.replace("www.", "") + " — джерело"
+            return href, label
+        return None, None
+
+    content = page.find("div", class_=re.compile(r"entry-content|post-content|content", re.I))
+    if content:
+        found = _scan(content)
+        if found[0]:
+            return found
+        # Регулярний вираз "content" надто широкий — часто ловить дрібну
+        # обгортку типу кнопок "Поділитись" (class="share-content") замість
+        # справжнього тіла статті, і пошук у ній вичерпується без
+        # результату. Не здаємось — пробуємо ще раз по ВСІЙ сторінці,
+        # перш ніж визнати, що посилання на першоджерело справді немає.
+    return _scan(page)
 
 
 def process_fundsforngos_listing(digest_url: str, posted_links: set,
