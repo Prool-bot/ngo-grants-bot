@@ -1152,88 +1152,23 @@ def build_simple_message(item_title: str, link: str, description: str,
 # CHASZMIN
 # ---------------------------------------------------------------------------
 
-JUNK_MARKERS = [
-    "ПІДРУЧНИК", "ПОСІБНИК", "ПОРАДНИК", "КАТАЛОГ ФОНДІВ",
-    "ШКОЛА ГРАНТОЗНАВСТВА", "Подати заявку ТУТ", "HOW TO GET",
-    "Можливо, ви захочете", "Замовити оформлення",
-    "Ми допомагаємо в оформленні",
-]
+# ---------------------------------------------------------------------------
+# CHASZMIN
+# ---------------------------------------------------------------------------
 
-
-def is_junk(sentence: str) -> bool:
-    return any(m.lower() in sentence.lower() for m in JUNK_MARKERS)
-
-
-def process_chaszmin_entry(title: str, link: str) -> str:
-    page = requests.get(link, timeout=30)
+def fetch_chaszmin_article(link: str):
+    """Завантажує сторінку конкретного посту chaszmin.com.ua і повертає
+    (сирий_текст_статті, soup_для_пошуку_посилань). chaszmin — вторинне
+    джерело (передруковує гранти з першоджерел, як fundsforngos), тому
+    сам текст іде далі через звичайний AI-конвеєр build_and_send, а не
+    власний ручний шаблон — так само, як усі інші джерела каналу."""
+    page = requests.get(link, timeout=30, headers={
+        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")})
     soup = BeautifulSoup(page.text, "html.parser")
     article = soup.find("article")
     text = article.get_text(" ", strip=True) if article else soup.get_text(" ", strip=True)
-
-    deadline = "не зазначено"
-    m = re.search(r"ДЕДЛАЙН:\s*(.*?)\s*(ДЕ:|ГАЛУЗІ:)", text, re.IGNORECASE)
-    if m:
-        deadline = m.group(1).strip()
-
-    location = "не зазначено"
-    m = re.search(r"ДЕ:\s*(.*?)\s*ГАЛУЗІ:", text, re.IGNORECASE)
-    if m:
-        location = m.group(1).strip()
-
-    sectors = "не зазначено"
-    m = re.search(r"ГАЛУЗІ:\s*(.*?)(Ми допомагаємо|Сума|Для кого|$)", text, re.IGNORECASE)
-    if m:
-        sectors = m.group(1).strip()
-
-    target = ""
-    m = re.search(
-        r"Для кого[:\s]*(.*?)(До участі допускаються|Сума|Дедлайн[:\s]|$)",
-        text, re.IGNORECASE)
-    if m:
-        raw = m.group(1).strip()
-        sentences = re.split(r"(?<=[.!?])\s+", raw)
-        clean = []
-        for s in sentences:
-            s = s.strip()
-            if not s:
-                continue
-            if is_junk(s):
-                break
-            clean.append(s)
-        target = " ".join(clean).strip()
-        if len(target) > 900:
-            target = target[:900] + "..."
-
-    search_zone = text
-    fk = re.search(r"Для кого", search_zone, re.IGNORECASE)
-    fk_pos = fk.start() if fk else len(search_zone)
-    last_cut = 0
-    head = search_zone[:fk_pos]
-    for marker in [r"Замовити оформлення грантової заявки", r"Подати заявку ТУТ"]:
-        ms = list(re.finditer(marker, head, re.IGNORECASE))
-        if ms:
-            last_cut = max(last_cut, ms[-1].end())
-    search_zone = search_zone[last_cut:fk_pos]
-
-    summary = ""
-    for p in re.split(r"(?<=[.!?])\s+", search_zone):
-        p = p.strip()
-        if len(p) < 80 or is_junk(p):
-            continue
-        summary = p
-        break
-    if not summary:
-        summary = title
-    if len(summary) > 1500:
-        summary = summary[:1500] + "..."
-
-    msg = f"\n🌍 <b>{title}</b>\n📅 <b>Дедлайн:</b> {deadline}\n🌍 <b>Де:</b> {location}\n🎯 <b>Галузі:</b> {sectors}\n"
-    if target:
-        msg += f"\n👥 <b>Для кого:</b>\n{target}\n"
-    msg += f"\n💡 <b>Деталі:</b>\n{summary}\n🔗 <a href=\"{link}\">Деталі гранту</a>\n"
-    if len(msg) > 4000:  # запас нижче ліміту Telegram у 4096, про всяк випадок
-        msg = msg[:4000] + "…"
-    return msg
+    return text, soup
 
 
 def run_chaszmin(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
@@ -1251,32 +1186,25 @@ def run_chaszmin(posted_links: set, posted_titles: set, posted_keywords: list) -
             save_posted_link(link)
             posted_links.add(link)
             continue
-        # Chaszmin не проходить через AI-переформат (свій регекс-парсинг),
-        # тож stage 2 тут звіряється просто на власному заголовку джерела.
-        if is_title_duplicate(title, posted_titles) or is_semantic_duplicate(title, posted_keywords):
-            print(f"[chaszmin] Skipped (дубль з іншого джерела): {title[:60]}")
-            save_posted_link(link)
-            posted_links.add(link)
-            continue
         print(f"[chaszmin] Processing: {title}")
         try:
-            msg = process_chaszmin_entry(title, link)
-            is_file_link = link.split("?")[0].lower().endswith(
-                (".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"))
-            resp = send_telegram_message(msg, disable_preview=is_file_link)
-            print(resp.text)
+            raw_text, soup = fetch_chaszmin_article(link)
+            # chaszmin сам вторинне джерело — шукаємо, куди веде далі,
+            # так само як для fundsforngos/opportunitiesradar тощо.
+            found_url, found_label = find_original_source_link(soup, extra_skip_domains=("chaszmin",))
+            source_url = found_url or link
+            source_label = found_label or "Час Змін — джерело"
+
+            resp = build_and_send("📰", title, source_url, raw_text, source_label,
+                                   posted_titles, posted_keywords, posted_links)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
-                save_title_hash(title, posted_titles, posted_keywords)
+                if source_url != link:
+                    save_posted_link(source_url)
+                    posted_links.add(source_url)
         except Exception as e:
             print(f"[chaszmin] ERROR {link}: {e}")
-
-
-# ---------------------------------------------------------------------------
-# RSS ДЖЕРЕЛА (GURT / PROSTIR / GETGRANT)
-# ---------------------------------------------------------------------------
-
 def run_simple_source(rss_url: str, source_label: str, posted_links: set,
                       posted_titles: set, posted_keywords: list,
                       limit: int = 20, analytics_filter: bool = False) -> None:
