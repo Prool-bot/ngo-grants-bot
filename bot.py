@@ -119,6 +119,7 @@ IMPACTFUNDING_RSS = "https://impactfunding.substack.com/feed"
 # (конкурси/гранти) — окремі статті, не збірка, пагінація не потрібна,
 # бо нові записи завжди зверху першої сторінки.
 MONITOR_WOLYNSKI_URL = "https://monitorwolynski.com/uk/categories/konkursy"
+GRANTHUB_LIST_URL = "https://granthub.org.ua/granty"
 
 # Сайти-агрегатори/блоги можливостей, які САМІ НЕ Є першоджерелом — вони
 # лише переказують і посилаються на офіційну сторінку донора/фонду.
@@ -590,6 +591,23 @@ AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гра�
   вашим внескам", звіт про використання зібраних коштів) — це НЕ
   оголошення можливості подати заявку, а публічна подяка чи звіт,
   навіть якщо згадується платформа збору коштів.
+- is_relevant = false також, якщо конкурс шукає партнера з РЕАЛЬНОЮ
+  ОПЕРАЦІЙНОЮ ПРИСУТНІСТЮ в конкретній іншій країні/регіоні для
+  впровадження програми на місці (наприклад "WFP шукає партнерську
+  організацію для реалізації програми відновлення в провінції Х,
+  Мозамбік" — тут потрібен виконавець, який вже фізично працює в тому
+  регіоні). Тематична близькість (та сама сфера — продовольча безпека,
+  клімат тощо) НЕ робить це реалістично доступним для української
+  організації без присутності в тій країні. Не плутати з дійсно
+  глобальними грантами, відкритими для заявників з будь-якої країни
+  незалежно від того, де вони фізично впроваджуватимуть проєкт.
+- is_relevant = false також для знижок/акцій на споживчі підписки та
+  сервіси (навіть безкоштовні тимчасово), якщо вони не є грантом чи
+  фінансуванням роботи/проєкту читача, а особистою знижкою на продукт
+  (наприклад "12 місяців Google AI Plus безкоштовно для студентів",
+  знижки на софт, безкоштовні тріали сервісів). Ключова ознака: після
+  завершення пільгового періоду читач сам почне платити за підписку —
+  це маркетингова пропозиція постачальника, а не грант.
 - is_relevant = false також для звичайних оплачуваних вакансій/трудових
   посад (штатна робота, контракт на найм працівника з зарплатнею за
   виконання обов'язків в організації) — НАВІТЬ якщо в назві позиції є
@@ -2396,6 +2414,72 @@ def run_monitor_wolynski(posted_links: set, posted_titles: set, posted_keywords:
                 posted_links.add(link)
         except Exception as e:
             print(f"[Monitor Wolynski] ERROR {link}: {e}")
+
+
+def run_granthub(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
+    """granthub.org.ua/granty — український каталог грантів із власною
+    редакцією ("Перевірено редакцією"), структурованими полями (сума,
+    дедлайн, аудиторія, регіон) і посиланням "Перейти до конкурсу" на
+    кожній сторінці гранту. Як і fundsforngos/chaszmin, сам є вторинним
+    джерелом: "Перейти до конкурсу" іноді веде не напряму на донора, а
+    на пост у Telegram-каналі (напр. @grantovyphishky, який ми й так
+    моніторимо) — тому так само шукаємо справжнє першоджерело.
+    Список на сайті підвантажується частково через JS ("Підвантажити
+    ще") — беремо лише те, що є в початковому HTML (~30 записів)."""
+    page = fetch_html(GRANTHUB_LIST_URL)
+    if not page:
+        print("[GrantHub] Не вдалось завантажити список")
+        return
+
+    title_links = page.select("h3 a[href*='/granty/']")
+    if not title_links:
+        # Запасний варіант, якщо верстка сайту зміниться і заголовки
+        # більше не будуть у <h3> — краще ширший пошук, ніж нічого.
+        title_links = [a for a in page.find_all("a", href=True) if "/granty/" in a["href"]]
+
+    seen_urls, items = set(), []
+    for a in title_links:
+        href = a["href"]
+        if href.rstrip("/").endswith("/granty"):
+            continue  # це саме посилання на список, не на конкретний грант
+        full_url = href if href.startswith("http") else "https://granthub.org.ua" + href
+        text = a.get_text(strip=True)
+        if not text or full_url in seen_urls:
+            continue
+        seen_urls.add(full_url)
+        items.append((text, full_url))
+
+    print(f"[GrantHub] Знайдено {len(items)} записів на сторінці")
+
+    for title, link in items:
+        if link in posted_links:
+            continue
+        if is_excluded(title):
+            save_posted_link(link)
+            posted_links.add(link)
+            continue
+
+        detail_page = fetch_html(link)
+        description = collect_paragraphs(detail_page, min_len=40) if detail_page else title
+        if not description:
+            description = title
+
+        source_url, source_label = (find_original_source_link(detail_page, extra_skip_domains=("granthub",))
+                                     if detail_page else (None, None))
+        if not source_url:
+            source_url, source_label = link, "GrantHub — джерело"
+
+        try:
+            resp = build_and_send("📋", title, source_url, description, source_label,
+                                   posted_titles, posted_keywords, posted_links, strict_fallback=True)
+            if resp.status_code == 200:
+                save_posted_link(link)
+                posted_links.add(link)
+                if source_url != link:
+                    save_posted_link(source_url)
+                    posted_links.add(source_url)
+        except Exception as e:
+            print(f"[GrantHub] ERROR {link}: {e}")
         time.sleep(2)
 
 
@@ -2487,6 +2571,7 @@ def main():
     run_hyperallergic(posted_links, posted_titles, posted_keywords)
     run_impactfunding(posted_links, posted_titles, posted_keywords)
     run_monitor_wolynski(posted_links, posted_titles, posted_keywords)
+    run_granthub(posted_links, posted_titles, posted_keywords)
     # run_undp_ukraine() вимкнено: undp.org захищений WAF (Cloudflare/Akamai),
     # що блокує запити з хмарних IP GitHub Actions незалежно від заголовків —
     # кожен прогін лише витрачав час на 403 і засмічував лог. Функція лишається
