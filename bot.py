@@ -25,6 +25,14 @@ GROQ_MODEL = "openai/gpt-oss-120b"
 # нерелевантного сміття (списки переможців, експертні ради, історії
 # про менеджмент — усе, що AI мав би відфільтрувати, але не встиг).
 _ai_quota_exhausted_this_run = False
+
+# Пости, де після AI-обробки не лишилось жодної секції (ні тексту, ні
+# дедлайну/географії/фінансування) — замість тихого пропуску збираються
+# тут і йдуть одним email-дайджестом наприкінці прогону, так само як
+# нерозпізнані пости з Instagram/Facebook. Причина найчастіше — сайт
+# на JS-фреймворку, що не віддає текст без виконання JavaScript;
+# можливо, там є щось цінне, що варто перевірити вручну за посиланням.
+_empty_content_items = []
 POSTED_LINKS_FILE = "posted_links.txt"
 POSTED_TITLES_FILE = "posted_titles.txt"
 
@@ -950,6 +958,21 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         sections.append((4, "📝 <b>У заявці потрібно надати:</b>\n" + _bullets(ai["application_requirements"])))
     if ai.get("notes"):
         sections.append((5, ai["notes"]))
+
+    if not sections:
+        # Жодної секції — ні intro (навіть fallback на сирий текст
+        # порожній), ні дедлайну/географії, ні жодного іншого поля.
+        # Найімовірніша причина: сайт-джерело віддає майже порожній HTML
+        # без виконання JavaScript (сучасні сайти на React/Webflow тощо) —
+        # скрапер фізично не побачив реального тексту сторінки. Публікація
+        # голого заголовка з посиланням без жодного змісту гірша за
+        # пропуск, АЛЕ там може бути щось цінне (як і з нерозпізнаними
+        # Instagram/Facebook постами) — тож не викидаємо мовчки, а
+        # збираємо для email-дайджесту наприкінці прогону.
+        global _empty_content_items
+        _empty_content_items.append((title, link))
+        print(f"[{source_label}] Skipped (порожній контент, надіслано на email): {title[:60]}")
+        return _SkippedIrrelevant()
 
     main_link_label = ai.get("source_link_label") or source_label
     links_block = f"🔗 <a href=\"{link}\">{main_link_label}</a>"
@@ -2477,6 +2500,17 @@ def main():
                 "(першоджерело не знайдено) — обробіть вручну:\n\n" + "\n\n".join(lines))
         send_notification_email(
             f"NGO Grants Bot: {len(unresolved_social)} нерозпізнаних постів із соцмереж",
+            body,
+        )
+
+    if _empty_content_items:
+        lines = [f"- {title}\n  {url}" for title, url in _empty_content_items]
+        body = ("Ці пости бот пропустив, бо після обробки не лишилось жодного "
+                "змісту (найімовірніше, сайт-джерело не віддає текст без "
+                "виконання JavaScript) — перевірте вручну, можливо там є "
+                "щось цінне:\n\n" + "\n\n".join(lines))
+        send_notification_email(
+            f"NGO Grants Bot: {len(_empty_content_items)} постів із порожнім вмістом",
             body,
         )
 
