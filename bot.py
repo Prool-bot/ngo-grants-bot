@@ -14,6 +14,13 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 # llama-3.3-70b-versatile — оптимальний баланс якості й безкоштовної квоти
 # на Groq (значно вища за поточний ліміт Gemini free tier, ~20 запитів/день).
 GROQ_MODEL = "openai/gpt-oss-120b"
+# groq/compound — агентна модель з вбудованим ЖИВИМ веб-пошуком (на
+# відміну від gpt-oss-120b, який працює лише з текстом, що йому
+# передали). Має ОКРЕМУ безкоштовну квоту (30 RPM / 250 RPD), яка не
+# ділиться з основним конвеєром форматування — тож щоденний AI-пошук
+# не забирає квоту в основної обробки постів.
+GROQ_COMPOUND_MODEL = "groq/compound"
+AI_DISCOVERY_STATE_FILE = "last_ai_discovery.txt"
 
 # Щойно один виклик Groq повертає 429 з довгим Retry-After (ознака
 # вичерпаної ДЕННОЇ квоти, не короткого RPM-сплеску) — цей прапорець
@@ -2480,6 +2487,109 @@ def run_granthub(posted_links: set, posted_titles: set, posted_keywords: list) -
                     posted_links.add(source_url)
         except Exception as e:
             print(f"[GrantHub] ERROR {link}: {e}")
+
+
+def _should_run_ai_discovery() -> bool:
+    """Раз на добу за UTC-датою. Стан зберігається у файлі, який
+    комітиться в репозиторій разом із posted_links.txt — так само, як
+    дедуп-списки, він переживає між прогонами GitHub Actions."""
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    try:
+        with open(AI_DISCOVERY_STATE_FILE, encoding="utf-8") as f:
+            last_run = f.read().strip()
+    except FileNotFoundError:
+        last_run = ""
+    return last_run != today
+
+
+def _mark_ai_discovery_ran() -> None:
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with open(AI_DISCOVERY_STATE_FILE, "w", encoding="utf-8") as f:
+        f.write(today)
+
+
+def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
+    """Раз на день groq/compound сам шукає в інтернеті нові грантові
+    можливості, які могли пропустити всі фіксовані джерела й Google
+    Alerts — це ЛИШЕ джерело ідей-кандидатів. Кожен знайдений URL іде
+    через ЗВИЧАЙНИЙ конвеєр (build_and_send) — так само перевіряється
+    на релевантність і дублікати, форматується тим самим gpt-oss-120b,
+    як і все інше. Якщо Groq вигадає неробочий URL — fetch_html просто
+    впаде з помилкою, і кандидат мовчки пропускається, без наслідків."""
+    if not _should_run_ai_discovery():
+        print("[AI-пошук] Вже запускався сьогодні — пропускаємо")
+        return
+    if not GROQ_API_KEY:
+        return
+
+    prompt = (
+        "Знайди 10-15 АКТУАЛЬНИХ (відкритих зараз, дедлайн ще не минув) "
+        "грантів, стипендій, конкурсів чи програм фінансування, "
+        "релевантних для української аудиторії: громадських "
+        "організацій, митців, дослідників, малого бізнесу, студентів, "
+        "журналістів, ветеранів. Шукай по всьому світу, не лише в "
+        "Україні — гранти можуть бути глобальними або відкритими для "
+        "іноземних заявників. НЕ пропонуй найвідоміші великі програми "
+        "(Erasmus+, Fulbright, Horizon Europe загалом, Chevening) — "
+        "шукай менш розтиражовані, свіжі оголошення (за останній "
+        "тиждень-два). Для кожного дай ТОЧНЕ посилання на офіційну "
+        "сторінку оголошення (сайт донора/фонду, не агрегатор). "
+        "Поверни РІВНО один JSON-об'єкт без жодного тексту навколо, "
+        'без markdown: {"items": [{"title": "...", "url": "..."}, ...]}'
+    )
+    try:
+        resp = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}",
+                     "Content-Type": "application/json"},
+            json={
+                "model": GROQ_COMPOUND_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.4,
+            },
+            timeout=90,
+        )
+        resp.raise_for_status()
+        data = json.loads(resp.json()["choices"][0]["message"]["content"])
+        items = data.get("items", [])
+    except Exception as e:
+        print(f"[AI-пошук] ERROR: {e}")
+        return
+
+    print(f"[AI-пошук] groq/compound запропонував {len(items)} кандидатів")
+    _mark_ai_discovery_ran()
+
+    for item in items:
+        title = (item.get("title") or "").strip()
+        link = (item.get("url") or "").strip()
+        if not title or not link or link in posted_links:
+            continue
+        if is_excluded(title):
+            continue
+        print(f"[AI-пошук] Processing: {title[:60]}")
+        try:
+            page = fetch_html(link)
+            description = collect_paragraphs(page, min_len=40) if page else title
+            if not description:
+                description = title
+            source_url, source_label = (find_original_source_link(page)
+                                         if page else (None, None))
+            if not source_url:
+                source_url, source_label = link, "AI-пошук — джерело"
+            resp2 = build_and_send("🔎", title, source_url, description, source_label,
+                                    posted_titles, posted_keywords, posted_links,
+                                    strict_fallback=True)
+            if resp2.status_code == 200:
+                save_posted_link(link)
+                posted_links.add(link)
+                if source_url != link:
+                    save_posted_link(source_url)
+                    posted_links.add(source_url)
+        except Exception as e:
+            print(f"[AI-пошук] ERROR {link}: {e}")
         time.sleep(2)
 
 
@@ -2572,6 +2682,7 @@ def main():
     run_impactfunding(posted_links, posted_titles, posted_keywords)
     run_monitor_wolynski(posted_links, posted_titles, posted_keywords)
     run_granthub(posted_links, posted_titles, posted_keywords)
+    run_ai_discovery(posted_links, posted_titles, posted_keywords)
     # run_undp_ukraine() вимкнено: undp.org захищений WAF (Cloudflare/Akamai),
     # що блокує запити з хмарних IP GitHub Actions незалежно від заголовків —
     # кожен прогін лише витрачав час на 403 і засмічував лог. Функція лишається
