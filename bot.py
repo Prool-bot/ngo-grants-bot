@@ -2540,20 +2540,35 @@ def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: lis
         'без markdown: {"items": [{"title": "...", "url": "..."}, ...]}'
     )
     try:
-        resp = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}",
-                     "Content-Type": "application/json"},
-            json={
-                "model": GROQ_COMPOUND_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.4,
-            },
-            timeout=90,
-        )
-        resp.raise_for_status()
-        data = json.loads(resp.json()["choices"][0]["message"]["content"])
+        data = None
+        for attempt in range(3):
+            resp = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {GROQ_API_KEY}",
+                         "Content-Type": "application/json"},
+                json={
+                    "model": GROQ_COMPOUND_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.4,
+                },
+                timeout=90,
+            )
+            if resp.status_code == 429:
+                raw_wait = int(resp.headers.get("Retry-After", 10 * (attempt + 1)))
+                if raw_wait > 30:
+                    print(f"[AI-пошук] 429, сервер просить {raw_wait}с — "
+                          f"схоже на вичерпану квоту compound на сьогодні. Пропускаємо.")
+                    return
+                print(f"[AI-пошук] 429, чекаю {raw_wait}с (спроба {attempt + 1}/3)")
+                time.sleep(raw_wait)
+                continue
+            resp.raise_for_status()
+            data = json.loads(resp.json()["choices"][0]["message"]["content"])
+            break
+        if data is None:
+            print("[AI-пошук] Не вдалось отримати відповідь після повторних спроб")
+            return
         items = data.get("items", [])
     except Exception as e:
         print(f"[AI-пошук] ERROR: {e}")
