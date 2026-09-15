@@ -59,11 +59,13 @@ UMF_RSS       = "https://uyf.gov.ua/rss/"
 UMF_NEWS_URL  = "https://uyf.gov.ua/news"
 
 TG_CHANNELS = [
-    ("grantsua",        "Гранти UA"),
-    ("grantovyphishky", "Грантові фішки"),
-    ("houseofeurope",   "House of Europe"),
-    ("grants_here",     "Гранти та можливості"),  # 20K+ підписників, Connection Agency
-    ("GrantUP",          "GrantUP"),               # є гранти, але і мікс-контент — фільтруємо
+    ("grantsua",        "Гранти UA",              False),
+    ("grantovyphishky", "Грантові фішки",         False),
+    ("houseofeurope",   "House of Europe",        False),
+    ("grants_here",     "Гранти та можливості",   False),  # 20K+ підписників, Connection Agency
+    ("GrantUP",          "GrantUP",                True),   # мікс-контент (донати, новини не про гранти) —
+                                                              # строгий режим: якщо AI впаде, пост
+                                                              # пропускається, а не публікується сирим
 ]
 
 # Google Alerts, перемкнуті на доставку "Стрічка RSS" (не email).
@@ -984,16 +986,18 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
     if ai.get("notes"):
         sections.append((5, ai["notes"]))
 
-    if not sections:
-        # Жодної секції — ні intro (навіть fallback на сирий текст
-        # порожній), ні дедлайну/географії, ні жодного іншого поля.
-        # Найімовірніша причина: сайт-джерело віддає майже порожній HTML
-        # без виконання JavaScript (сучасні сайти на React/Webflow тощо) —
-        # скрапер фізично не побачив реального тексту сторінки. Публікація
-        # голого заголовка з посиланням без жодного змісту гірша за
-        # пропуск, АЛЕ там може бути щось цінне (як і з нерозпізнаними
-        # Instagram/Facebook постами) — тож не викидаємо мовчки, а
-        # збираємо для email-дайджесту наприкінці прогону.
+    total_content_len = sum(len(text) for _, text in sections)
+    if not sections or total_content_len < 60:
+        # Жодної секції (чи сукупно менше 60 символів) — ні intro (навіть
+        # fallback на сирий текст порожній чи символічний), ні
+        # дедлайну/географії, ні жодного іншого поля. Найімовірніша
+        # причина: сайт-джерело віддає майже порожній HTML без виконання
+        # JavaScript (сучасні сайти на React/Webflow тощо) — скрапер
+        # фізично не побачив реального тексту сторінки. Публікація голого
+        # заголовка з посиланням без жодного змісту гірша за пропуск, АЛЕ
+        # там може бути щось цінне (як і з нерозпізнаними Instagram/
+        # Facebook постами) — тож не викидаємо мовчки, а збираємо для
+        # email-дайджесту наприкінці прогону.
         global _empty_content_items
         _empty_content_items.append((title, link))
         print(f"[{source_label}] Skipped (порожній контент, надіслано на email): {title[:60]}")
@@ -1255,7 +1259,8 @@ def run_chaszmin(posted_links: set, posted_titles: set, posted_keywords: list) -
             print(f"[chaszmin] ERROR {link}: {e}")
 def run_simple_source(rss_url: str, source_label: str, posted_links: set,
                       posted_titles: set, posted_keywords: list,
-                      limit: int = 20, analytics_filter: bool = False) -> None:
+                      limit: int = 20, analytics_filter: bool = False,
+                      strict_fallback: bool = False) -> None:
     feed = feedparser.parse(rss_url)
     if not feed.entries:
         print(f"[{source_label}] No entries")
@@ -1304,7 +1309,8 @@ def run_simple_source(rss_url: str, source_label: str, posted_links: set,
             print(f"[{source_label}] Processing: {item_title}")
             try:
                 resp = build_and_send("📌", item_title, link, item_text, source_label,
-                                       posted_titles, posted_keywords, posted_links)
+                                       posted_titles, posted_keywords, posted_links,
+                                       strict_fallback=strict_fallback)
                 if resp.status_code == 200:
                     save_posted_link(item_key)
                     posted_links.add(item_key)
@@ -1618,15 +1624,16 @@ def run_umf(posted_links: set, posted_titles: set, posted_keywords: list) -> Non
                     contest_links.append(entry.link)
             break
     if not contest_links:
-        soup = fetch_html(UMF_NEWS_URL)
-        if soup:
-            for a in soup.find_all("a", href=True):
-                href = a["href"]
-                if "/programs/" in href:
-                    if href.startswith("/"):
-                        href = "https://uyf.gov.ua" + href
-                    if href not in contest_links:
-                        contest_links.append(href)
+        # Раніше тут був запасний варіант — заходити напряму на
+        # https://uyf.gov.ua/news і шукати посилання на конкурси в HTML.
+        # Прибрано: цей запит стабільно висів 60с таймаутом у КОЖНОМУ
+        # прогоні без жодного винятку (сайт недоступний ззовні чи то
+        # через блокування, чи через JS-рендеринг), тобто щогодини
+        # додавав чисту втрату часу без жодної користі. RSS-стрічки
+        # вище лишаються основним і єдиним способом отримати конкурси
+        # УМФ — якщо колись сайт стане доступний знову, можна повернути
+        # цей блок (git-історія його не забула).
+        pass
     if not contest_links:
         pass  # УМФ недоступний через JS-рендеринг
         return
@@ -1669,7 +1676,8 @@ def run_umf(posted_links: set, posted_titles: set, posted_keywords: list) -> Non
 # ---------------------------------------------------------------------------
 
 def run_tg_channel(username: str, channel_name: str,
-                   posted_links: set, posted_titles: set, posted_keywords: list) -> None:
+                   posted_links: set, posted_titles: set, posted_keywords: list,
+                   strict_fallback: bool = False) -> None:
     from datetime import datetime, timezone, timedelta
     url = f"https://t.me/s/{username}"
     try:
@@ -1747,7 +1755,8 @@ def run_tg_channel(username: str, channel_name: str,
         try:
             response = build_and_send("📌", first_line, source_url, text,
                                        source_label,
-                                       posted_titles, posted_keywords, posted_links, deadline_hint=deadline)
+                                       posted_titles, posted_keywords, posted_links,
+                                       deadline_hint=deadline, strict_fallback=strict_fallback)
             if response.status_code == 200:
                 save_posted_link(item_key)
                 posted_links.add(item_key)
@@ -2682,8 +2691,9 @@ def main():
     run_ucf(posted_links, posted_titles, posted_keywords)
     run_veteranfund(posted_links, posted_titles, posted_keywords)
     run_umf(posted_links, posted_titles, posted_keywords)
-    for username, channel_name in TG_CHANNELS:
-        run_tg_channel(username, channel_name, posted_links, posted_titles, posted_keywords)
+    for username, channel_name, strict in TG_CHANNELS:
+        run_tg_channel(username, channel_name, posted_links, posted_titles, posted_keywords,
+                        strict_fallback=strict)
     google_alerts_counter = {"count": 0}
     unresolved_social = []
     for feed_url in GOOGLE_ALERT_FEEDS:
