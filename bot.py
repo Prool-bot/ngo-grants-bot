@@ -1878,7 +1878,38 @@ def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
             return href, label
         return None, None
 
+    # Текст посилання, що майже напевно веде на справжнє першоджерело
+    # (кнопка "Apply Now", рядок "For more information, visit..." тощо).
+    # Раніше бралося просто ПЕРШЕ зовнішнє посилання на сторінці — на
+    # агрегаторах типу fundsforngos це часто виявлявся сторонній сервіс
+    # чи партнерський банер десь угорі, а справжнє посилання на донора
+    # лежить нижче, у кінці статті. Тому спершу шукаємо "промовисті".
+    PRIORITY_LINK_PATTERNS = re.compile(
+        r"apply|official|more info|full details|visit|website|"
+        r"подати|заявк|офіційн|детальніше|докладніше|джерел",
+        re.I)
+
+    def _scan_priority(scope):
+        for a in scope.find_all("a", href=True):
+            href = a["href"]
+            anchor_text = a.get_text(" ", strip=True)
+            if not anchor_text or not PRIORITY_LINK_PATTERNS.search(anchor_text):
+                continue
+            netloc = urlparse(href).netloc.lower()
+            path = urlparse(href).path.lower()
+            if not netloc or any(d in netloc for d in skip_own) or is_social_media_url(href) or is_ai_chat_share_url(href):
+                continue
+            if path.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")):
+                continue
+            return href, netloc.replace("www.", "") + " — джерело"
+        return None, None
+
     content = page.find("div", class_=re.compile(r"entry-content|post-content|content", re.I))
+    for scope in ([content] if content else []) + [page]:
+        found = _scan_priority(scope)
+        if found[0]:
+            return found
+
     if content:
         found = _scan(content)
         if found[0]:
