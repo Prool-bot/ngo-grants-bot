@@ -333,3 +333,5 @@ remarket|бджільництві|бізнесу|виробництві|пека
 assistance|democracy|electoral|institute|international|notice|refere|tender
 film|media|sacramento|кіно|медіапроектів
 collaborative|grants|research|results|small|uptake
+peace|science|security|нато|наукових|проєктів
+policy|tech|демократії|досліджуватимуть|журналістів|перетині|питання|стипендії|технологій
