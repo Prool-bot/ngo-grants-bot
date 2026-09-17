@@ -19,7 +19,13 @@ GROQ_MODEL = "openai/gpt-oss-120b"
 # передали). Має ОКРЕМУ безкоштовну квоту (30 RPM / 250 RPD), яка не
 # ділиться з основним конвеєром форматування — тож щоденний AI-пошук
 # не забирає квоту в основної обробки постів.
-GROQ_COMPOUND_MODEL = "groq/compound"
+GROQ_COMPOUND_MODEL = "groq/compound-mini"
+# Було "groq/compound" — стабільний 429 щодня без жодного винятку
+# (плюс одного разу 413 Payload Too Large) протягом тижня спостережень.
+# compound-mini має ОКРЕМУ квоту від compound, тож вартий спроби. Якщо
+# й ця модель так само стабільно падатиме — питання не в конкретній
+# моделі, а в доступі до "агентних" моделей Groq на цьому тарифі
+# загалом, і тоді має сенс прибрати фічу AI-пошуку зовсім.
 AI_DISCOVERY_STATE_FILE = "last_ai_discovery.txt"
 
 # Щойно один виклик Groq повертає 429 з довгим Retry-After (ознака
@@ -2050,17 +2056,27 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
                     save_posted_link(real_url)
                     posted_links.add(real_url)
                     continue
+                if not tweet_link:
+                    # Раніше тут все одно публікувалось із самим твітом
+                    # як джерелом ("x.com — джерело" чи AI-згенероване
+                    # "Твіт про грант") — непослідовно з тим, як
+                    # обробляються Facebook/Instagram нижче (там
+                    # відсутність посилання всередині посту = пропуск +
+                    # email). Твіт без вбудованого посилання так само не
+                    # першоджерело, а лише згадка — вирівнюємо поведінку.
+                    print(f"[{alert_label}] Skipped (твіт без посилання на першоджерело, надіслано на email): {raw_title[:60]}")
+                    save_posted_link(real_url)
+                    posted_links.add(real_url)
+                    unresolved_social.append((raw_title, real_url))
+                    continue
                 description = tweet_text
-                if tweet_link:
-                    real_url = tweet_link
-                    tweet_page = fetch_html(real_url)
-                    fuller = collect_paragraphs(tweet_page, min_len=100) if tweet_page else ""
-                    if fuller:
-                        description = fuller
-                    domain = urlparse(real_url).netloc.lower().replace("www.", "")
-                    netloc_source = f"{domain} — джерело" if domain else "x.com — джерело"
-                else:
-                    netloc_source = "x.com — джерело"
+                real_url = tweet_link
+                tweet_page = fetch_html(real_url)
+                fuller = collect_paragraphs(tweet_page, min_len=100) if tweet_page else ""
+                if fuller:
+                    description = fuller
+                domain = urlparse(real_url).netloc.lower().replace("www.", "")
+                netloc_source = f"{domain} — джерело" if domain else "x.com — джерело"
             else:
                 # Facebook/Instagram — простий перехід. Instagram майже
                 # завжди тут впаде (блокує датацентрові IP на першому ж
@@ -2713,8 +2729,6 @@ def main():
     run_chaszmin(posted_links, posted_titles, posted_keywords)
     run_simple_source(GURT_RSS,     "ГУРТ — джерело",                posted_links,
                       posted_titles, posted_keywords)
-    run_simple_source(PROSTIR_RSS,  "Громадський Простір — джерело", posted_links,
-                      posted_titles, posted_keywords)
     run_simple_source(GETGRANT_RSS,  "GetGrant — джерело",           posted_links,
                       posted_titles, posted_keywords, analytics_filter=True)
     run_isar(posted_links, posted_titles, posted_keywords)
@@ -2737,6 +2751,14 @@ def main():
     run_hyperallergic(posted_links, posted_titles, posted_keywords)
     run_impactfunding(posted_links, posted_titles, posted_keywords)
     run_monitor_wolynski(posted_links, posted_titles, posted_keywords)
+    # Громадський Простір навмисно в самому кінці черги: переважно тендери
+    # й закупівлі, дуже низька віддача (майже завжди Skipped), але
+    # споживає AI-квоту на кожен запис. Раніше стояв на початку й
+    # "з'їдав" квоту, якої потім бракувало пріоритетнішим джерелам
+    # (fundsforngos, Monitor Wolynski, GrantHub) — тепер вони йдуть
+    # першими, а ГП отримує лише те, що лишилось.
+    run_simple_source(PROSTIR_RSS,  "Громадський Простір — джерело", posted_links,
+                      posted_titles, posted_keywords, strict_fallback=True)
     run_granthub(posted_links, posted_titles, posted_keywords)
     run_ai_discovery(posted_links, posted_titles, posted_keywords)
     # run_undp_ukraine() вимкнено: undp.org захищений WAF (Cloudflare/Akamai),
