@@ -14,18 +14,11 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 # llama-3.3-70b-versatile — оптимальний баланс якості й безкоштовної квоти
 # на Groq (значно вища за поточний ліміт Gemini free tier, ~20 запитів/день).
 GROQ_MODEL = "openai/gpt-oss-120b"
-# groq/compound — агентна модель з вбудованим ЖИВИМ веб-пошуком (на
-# відміну від gpt-oss-120b, який працює лише з текстом, що йому
-# передали). Має ОКРЕМУ безкоштовну квоту (30 RPM / 250 RPD), яка не
-# ділиться з основним конвеєром форматування — тож щоденний AI-пошук
-# не забирає квоту в основної обробки постів.
-GROQ_COMPOUND_MODEL = "groq/compound-mini"
-# Було "groq/compound" — стабільний 429 щодня без жодного винятку
-# (плюс одного разу 413 Payload Too Large) протягом тижня спостережень.
-# compound-mini має ОКРЕМУ квоту від compound, тож вартий спроби. Якщо
-# й ця модель так само стабільно падатиме — питання не в конкретній
-# моделі, а в доступі до "агентних" моделей Groq на цьому тарифі
-# загалом, і тоді має сенс прибрати фічу AI-пошуку зовсім.
+# Для щоденного AI-пошуку (run_ai_discovery) раніше використовувалась
+# groq/compound / compound-mini — агентні моделі Groq з вбудованим
+# пошуком. Прибрано після тижня стабільного 429 і офіційного листа від
+# Groq про списання compound-mini 21.09.2026. Замінено на окремий
+# пошуковий API Tavily (TAVILY_API_KEY) — див. run_ai_discovery.
 AI_DISCOVERY_STATE_FILE = "last_ai_discovery.txt"
 
 # Щойно один виклик Groq повертає 429 з довгим Retry-After (ознака
@@ -2567,70 +2560,55 @@ def _mark_ai_discovery_ran() -> None:
 
 
 def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
-    """Раз на день groq/compound сам шукає в інтернеті нові грантові
-    можливості, які могли пропустити всі фіксовані джерела й Google
-    Alerts — це ЛИШЕ джерело ідей-кандидатів. Кожен знайдений URL іде
-    через ЗВИЧАЙНИЙ конвеєр (build_and_send) — так само перевіряється
-    на релевантність і дублікати, форматується тим самим gpt-oss-120b,
-    як і все інше. Якщо Groq вигадає неробочий URL — fetch_html просто
-    впаде з помилкою, і кандидат мовчки пропускається, без наслідків."""
+    """Раз на день Tavily (окремий пошуковий API, 1000 безкоштовних
+    запитів/міс, без картки) шукає нові грантові можливості, які могли
+    пропустити всі фіксовані джерела й Google Alerts — це ЛИШЕ джерело
+    ідей-кандидатів. Кожен знайдений URL іде через ЗВИЧАЙНИЙ конвеєр
+    (build_and_send) — перевіряється на релевантність і дублікати,
+    форматується тим самим gpt-oss-120b, як і все інше.
+
+    Раніше тут був groq/compound (агентна модель з вбудованим пошуком) —
+    прибрано після тижня стабільного 429 і офіційного листа від Groq
+    про списання compound-mini 21.09.2026. Tavily — звичайний пошуковий
+    API (без "розумної" обробки результатів на своєму боці), тому
+    результати обробляє наш вже перевірений AI-конвеєр нижче, а не
+    Groq — розділення "пошук" і "аналіз" на дві незалежні системи
+    означає, що збій чи списання однієї не ламає повністю всю фічу."""
     if not _should_run_ai_discovery():
         print("[AI-пошук] Вже запускався сьогодні — пропускаємо")
         return
-    if not GROQ_API_KEY:
+    tavily_key = os.getenv("TAVILY_API_KEY")
+    if not tavily_key:
+        print("[AI-пошук] TAVILY_API_KEY не заданий — пропускаємо")
         return
 
-    prompt = (
-        "Знайди 10-15 АКТУАЛЬНИХ (відкритих зараз, дедлайн ще не минув) "
-        "грантів, стипендій, конкурсів чи програм фінансування, "
-        "релевантних для української аудиторії: громадських "
-        "організацій, митців, дослідників, малого бізнесу, студентів, "
-        "журналістів, ветеранів. Шукай по всьому світу, не лише в "
-        "Україні — гранти можуть бути глобальними або відкритими для "
-        "іноземних заявників. НЕ пропонуй найвідоміші великі програми "
-        "(Erasmus+, Fulbright, Horizon Europe загалом, Chevening) — "
-        "шукай менш розтиражовані, свіжі оголошення (за останній "
-        "тиждень-два). Для кожного дай ТОЧНЕ посилання на офіційну "
-        "сторінку оголошення (сайт донора/фонду, не агрегатор). "
-        "Поверни РІВНО один JSON-об'єкт без жодного тексту навколо, "
-        'без markdown: {"items": [{"title": "...", "url": "..."}, ...]}'
-    )
-    try:
-        data = None
-        for attempt in range(3):
+    queries = [
+        "нові гранти для громадських організацій 2026",
+        "open call grants nonprofit deadline 2026",
+        "грант стипендія конкурс дослідники митці Україна 2026",
+        "small grants funding program artists journalists 2026",
+    ]
+
+    items = []
+    for q in queries:
+        try:
             resp = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {GROQ_API_KEY}",
+                "https://api.tavily.com/search",
+                headers={"Authorization": f"Bearer {tavily_key}",
                          "Content-Type": "application/json"},
-                json={
-                    "model": GROQ_COMPOUND_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "response_format": {"type": "json_object"},
-                    "temperature": 0.4,
-                },
-                timeout=90,
+                json={"query": q, "search_depth": "basic", "max_results": 8},
+                timeout=30,
             )
-            if resp.status_code == 429:
-                raw_wait = int(resp.headers.get("Retry-After", 10 * (attempt + 1)))
-                if raw_wait > 30:
-                    print(f"[AI-пошук] 429, сервер просить {raw_wait}с — "
-                          f"схоже на вичерпану квоту compound на сьогодні. Пропускаємо.")
-                    return
-                print(f"[AI-пошук] 429, чекаю {raw_wait}с (спроба {attempt + 1}/3)")
-                time.sleep(raw_wait)
-                continue
             resp.raise_for_status()
-            data = json.loads(resp.json()["choices"][0]["message"]["content"])
-            break
-        if data is None:
-            print("[AI-пошук] Не вдалось отримати відповідь після повторних спроб")
-            return
-        items = data.get("items", [])
-    except Exception as e:
-        print(f"[AI-пошук] ERROR: {e}")
-        return
+            for r in resp.json().get("results", []):
+                title = (r.get("title") or "").strip()
+                url = (r.get("url") or "").strip()
+                if title and url:
+                    items.append({"title": title, "url": url})
+        except Exception as e:
+            print(f"[AI-пошук] ERROR запиту '{q}': {e}")
 
-    print(f"[AI-пошук] groq/compound запропонував {len(items)} кандидатів")
+    print(f"[AI-пошук] Tavily повернув {len(items)} кандидатів по {len(queries)} запитах")
     _mark_ai_discovery_ran()
 
     for item in items:
