@@ -1212,11 +1212,18 @@ def fetch_chaszmin_article(link: str):
     (сирий_текст_статті, soup_для_пошуку_посилань). chaszmin — вторинне
     джерело (передруковує гранти з першоджерел, як fundsforngos), тому
     сам текст іде далі через звичайний AI-конвеєр build_and_send, а не
-    власний ручний шаблон — так само, як усі інші джерела каналу."""
-    page = requests.get(link, timeout=30, headers={
-        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")})
-    soup = BeautifulSoup(page.text, "html.parser")
+    власний ручний шаблон — так само, як усі інші джерела каналу.
+
+    Раніше тут був окремий сирий requests.get() без ретраїв і перевірки
+    статус-коду — на відміну від fetch_html(), яку використовують усі
+    інші джерела. Один невдалий/обірваний запит (без жодного логу
+    помилки) міг дати майже порожній текст статті, який публікувався
+    як є (приклад: стипендія Амеліної — заголовок і посилання пройшли,
+    а тіло вийшло практично порожнім). Тепер той самий надійний шлях,
+    що й скрізь."""
+    soup = fetch_html(link)
+    if not soup:
+        return "", None
     article = soup.find("article")
     text = article.get_text(" ", strip=True) if article else soup.get_text(" ", strip=True)
     return text, soup
@@ -1242,7 +1249,8 @@ def run_chaszmin(posted_links: set, posted_titles: set, posted_keywords: list) -
             raw_text, soup = fetch_chaszmin_article(link)
             # chaszmin сам вторинне джерело — шукаємо, куди веде далі,
             # так само як для fundsforngos/opportunitiesradar тощо.
-            found_url, found_label = find_original_source_link(soup, extra_skip_domains=("chaszmin",))
+            found_url, found_label = (find_original_source_link(soup, extra_skip_domains=("chaszmin",))
+                                       if soup else (None, None))
             source_url = found_url or link
             source_label = found_label or "Час Змін — джерело"
 
