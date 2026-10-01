@@ -1216,6 +1216,29 @@ def build_simple_message(item_title: str, link: str, description: str,
 # CHASZMIN
 # ---------------------------------------------------------------------------
 
+# chaszmin у кожній статті додає власний рекламний "хвіст" (курси,
+# підручники, каталог фондів) упереміш із реальним текстом — і на
+# початку (банер "Ми допомагаємо в оформленні"), і в кінці (список
+# курсів/книг). Раніше це фільтрувалось через is_junk() всередині
+# ручного regex-парсера; коли той парсер прибрали на користь AI-
+# конвеєра, фільтрація зникла — і при збої AI сире рекламне сміття
+# почало публікуватись як є. AI зазвичай саме ігнорує такі вставки
+# при успішній обробці, але на fallback лишається все без розбору.
+CHASZMIN_JUNK_MARKERS = [
+    "ПІДРУЧНИК", "ПОСІБНИК", "ПОРАДНИК", "КАТАЛОГ ФОНДІВ",
+    "ШКОЛА ГРАНТОЗНАВСТВА", "HOW TO GET A GRANT",
+    "Можливо, ви захочете", "Замовити оформлення",
+    "Ми допомагаємо в оформленні", "експрес-уроків",
+]
+
+
+def _strip_chaszmin_junk(text: str) -> str:
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    kept = [s for s in sentences
+            if not any(m.lower() in s.lower() for m in CHASZMIN_JUNK_MARKERS)]
+    return " ".join(kept)
+
+
 def fetch_chaszmin_article(link: str):
     """Завантажує сторінку конкретного посту chaszmin.com.ua і повертає
     (сирий_текст_статті, soup_для_пошуку_посилань). chaszmin — вторинне
@@ -1235,7 +1258,7 @@ def fetch_chaszmin_article(link: str):
         return "", None
     article = soup.find("article")
     text = article.get_text(" ", strip=True) if article else soup.get_text(" ", strip=True)
-    return text, soup
+    return _strip_chaszmin_junk(text), soup
 
 
 def run_chaszmin(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
@@ -2601,9 +2624,15 @@ def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: lis
 
     queries = [
         "нові гранти для громадських організацій 2026",
-        "open call grants nonprofit deadline 2026",
-        "грант стипендія конкурс дослідники митці Україна 2026",
-        "small grants funding program artists journalists 2026",
+        "грант для бізнесу малого підприємства 2026",
+        "стипендія дослідники науковці грант 2026",
+        "open call artists grant exhibition 2026",
+        "журналістика медіа грант fellowship 2026",
+        "молодь студенти стипендія грант 2026",
+        "Horizon Europe Erasmus grant call Ukraine associated country",
+        "довкілля клімат екологія environmental grant program 2026",
+        "соціальне підприємництво інновації грант 2026",
+        "права людини гендер грант funding 2026",
     ]
 
     items = []
