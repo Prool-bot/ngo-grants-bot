@@ -58,22 +58,29 @@ UMF_RSS       = "https://uyf.gov.ua/rss/"
 UMF_NEWS_URL  = "https://uyf.gov.ua/news"
 
 TG_CHANNELS = [
-    ("grantsua",        "Гранти UA",              False),
-    ("grantovyphishky", "Грантові фішки",         False),
-    ("houseofeurope",   "House of Europe",        False),
-    ("grants_here",     "Гранти та можливості",   False),  # 20K+ підписників, Connection Agency
-    ("GrantUP",          "GrantUP",                True),   # мікс-контент (донати, новини не про гранти) —
+    ("grantsua",        "Гранти UA",              False, False),
+    ("grantovyphishky", "Грантові фішки",         False, False),
+    ("houseofeurope",   "House of Europe",        False, False),
+    ("grants_here",     "Гранти та можливості",   False, False),  # 20K+ підписників, Connection Agency
+    ("GrantUP",          "GrantUP",                True,  False),  # мікс-контент (донати, новини не про гранти) —
                                                               # строгий режим: якщо AI впаде, пост
                                                               # пропускається, а не публікується сирим
     # Нові малі канали (додано за запитом — навіть невеликі можуть давати
     # унікальні можливості, яких немає в великих). Університетські
     # відділи (ІФНМУ, ХНЕУ) — у строгому режимі, бо, найімовірніше,
     # мікс-контент (новини університету, події) — так само, як GrantUP.
-    ("grantsifnmu",     "Гранти ІФНМУ",           True),
-    ("grants4business", "Гранти для бізнесу",     False),
-    ("egrants_ua",      "eGrants UA",             False),
-    ("intdep_khnue",    "Міжнародний відділ ХНЕУ", True),
-    ("grantmanagement", "Грант-менеджмент",       False),
+    # Ці 5 каналів — самі по собі акселератори/ретранслятори грантів:
+    # лінк у їхньому пості найчастіше веде не на сайт донора, а на
+    # сторінку-посередник (власний сайт акселератора, university office
+    # тощо). resolve_deeper=True — після знаходження лінка в тексті
+    # поста бот додатково заходить на ЦЮ сторінку і шукає всередині неї
+    # ще глибше справжнє першоджерело (той самий механізм, що і для
+    # fundsforngos/GrantHub), а не бере лінк з тексту поста як кінцевий.
+    ("grantsifnmu",     "Гранти ІФНМУ",           True,  True),
+    ("grants4business", "Гранти для бізнесу",     False, True),
+    ("egrants_ua",      "eGrants UA",             False, True),
+    ("intdep_khnue",    "Міжнародний відділ ХНЕУ", True,  True),
+    ("grantmanagement", "Грант-менеджмент",       False, True),
 ]
 
 # Google Alerts, перемкнуті на доставку "Стрічка RSS" (не email).
@@ -1716,7 +1723,7 @@ def run_umf(posted_links: set, posted_titles: set, posted_keywords: list) -> Non
 
 def run_tg_channel(username: str, channel_name: str,
                    posted_links: set, posted_titles: set, posted_keywords: list,
-                   strict_fallback: bool = False) -> None:
+                   strict_fallback: bool = False, resolve_deeper: bool = False) -> None:
     from datetime import datetime, timezone, timedelta
     url = f"https://t.me/s/{username}"
     try:
@@ -1788,6 +1795,25 @@ def run_tg_channel(username: str, channel_name: str,
         # реальне посилання прямо в тексті поста (Telegram сам робить URL
         # клікабельними, тож усі лінки вже є в text_div).
         source_url, source_label = find_original_source_link(text_div)
+
+        # Для каналів-акселераторів (resolve_deeper=True) знайдений лінк —
+        # це, найімовірніше, сторінка самого акселератора/посередника
+        # (чи university international office), а НЕ сайт донора. Заходимо
+        # на цю сторінку і шукаємо справжнє першоджерело ще на один рівень
+        # глибше — так само, як для fundsforngos/GrantHub. Якщо глибший
+        # лінк не знайдено — лишаємо те, що вже є (краще так, ніж нічого).
+        if resolve_deeper and source_url and not is_social_media_url(source_url):
+            try:
+                own_domain = urlparse(source_url).netloc.lower().replace("www.", "")
+                deeper_page = fetch_html(source_url, timeout=30, retries=1)
+                if deeper_page:
+                    deeper_url, deeper_label = find_original_source_link(
+                        deeper_page, extra_skip_domains=(own_domain,))
+                    if deeper_url:
+                        source_url, source_label = deeper_url, deeper_label
+            except Exception as e:
+                print(f"[@{username}] Глибший пошук джерела не вдався: {e}")
+
         if not source_url:
             source_url, source_label = msg_url, f"{channel_name} — джерело"
 
@@ -2760,9 +2786,9 @@ def main():
     run_ucf(posted_links, posted_titles, posted_keywords)
     run_veteranfund(posted_links, posted_titles, posted_keywords)
     run_umf(posted_links, posted_titles, posted_keywords)
-    for username, channel_name, strict in TG_CHANNELS:
+    for username, channel_name, strict, resolve_deeper in TG_CHANNELS:
         run_tg_channel(username, channel_name, posted_links, posted_titles, posted_keywords,
-                        strict_fallback=strict)
+                        strict_fallback=strict, resolve_deeper=resolve_deeper)
     google_alerts_counter = {"count": 0}
     unresolved_social = []
     for feed_url in GOOGLE_ALERT_FEEDS:
