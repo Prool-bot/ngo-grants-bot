@@ -907,6 +907,25 @@ def is_likely_country_restricted(text: str) -> bool:
     return any(re.search(p, text, re.IGNORECASE) for p in COUNTRY_RESTRICTED_PATTERNS)
 
 
+def _squeeze(s: str) -> str:
+    return re.sub(r"[^\w]+", "", s.lower())
+
+
+def _is_redundant_deadline_item(item: str, deadline: str) -> bool:
+    """AI-інструкція прямо каже не повторювати дедлайн поза полем deadline,
+    але модель (особливо Groq) це іноді ігнорує — кладе в
+    application_requirements/notes пункт типу "Подати заявку до 1 вересня
+    2026 12:00 CEST", що просто дублює вже показаний 📅 Дедлайн. Таке не
+    ловить _dedupe_paragraphs (різні обгортки-заголовки навколо спільної
+    дати не дають ≥60% збігу всього абзацу), тож перевіряємо прицільно:
+    якщо сам рядок дедлайну (без пробілів/пунктуації) міститься всередині
+    пункту — це майже напевно повторення, а не окрема вимога."""
+    if not deadline:
+        return False
+    squeezed_deadline = _squeeze(deadline)
+    return bool(squeezed_deadline) and squeezed_deadline in _squeeze(item)
+
+
 def build_and_send(emoji: str, title: str, link: str, description: str,
                     source_label: str, posted_titles: set, posted_keywords: list,
                     posted_links: set, deadline_hint: str = "", strict_fallback: bool = False) -> requests.Response:
@@ -950,6 +969,16 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
 
     final_title = ai.get("title") or title
     deadline = ai.get("deadline") or deadline_hint
+
+    # Перевірка на прострочений дедлайн раніше стояла лише в 5 окремих
+    # джерелах (ISAR/МФВ/УКФ/ВФ/УМФ), і там звіряла regex-дедлайн зі
+    # сторінки ДО AI. Дедлайн, який повертає сам AI (ai.get("deadline")),
+    # і TG-канали взагалі не перевірялись — звідси пропуск явно
+    # застарілого гранту (наприклад "1 вересня 2020", коли зараз 2026).
+    # Перевіряємо тут, централізовано, для ВСІХ джерел одразу.
+    if deadline and is_deadline_passed(deadline):
+        print(f"[{source_label}] Skipped (дедлайн уже минув): {final_title[:60]} — {deadline}")
+        return _SkippedIrrelevant()
 
     ai_emoji = ai.get("emoji")
     final_emoji = ai_emoji if ai_emoji and len(ai_emoji) <= 4 else emoji
@@ -996,10 +1025,13 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         sections.append((3, f"⏳ <b>Тривалість:</b> {ai['duration']}"))
     if ai.get("evaluation_criteria"):
         sections.append((4, "🔬 <b>Оцінюватимуть:</b>\n" + _bullets(ai["evaluation_criteria"])))
-    if ai.get("application_requirements"):
-        sections.append((4, "📝 <b>У заявці потрібно надати:</b>\n" + _bullets(ai["application_requirements"])))
-    if ai.get("notes"):
-        sections.append((5, ai["notes"]))
+    requirements = [r for r in (ai.get("application_requirements") or [])
+                     if not _is_redundant_deadline_item(r, deadline)]
+    if requirements:
+        sections.append((4, "📝 <b>У заявці потрібно надати:</b>\n" + _bullets(requirements)))
+    notes = ai.get("notes")
+    if notes and not _is_redundant_deadline_item(notes, deadline):
+        sections.append((5, notes))
 
     total_content_len = sum(len(text) for _, text in sections)
     if not sections or total_content_len < 60:
