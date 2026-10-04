@@ -2056,29 +2056,53 @@ def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
     return _scan(page)
 
 
+# Заголовки-пункти, які насправді є шаблонною навігацією/сайдбаром, а не
+# назвою окремої можливості — "How to Apply", "News & updates", "Visit"
+# тощо. Перша реальна перевірка (на живому прогоні) показала, що звичайні
+# одиничні статті (новина про один грант, шкільний календар, сторінка
+# держустанови) майже завжди мають 2-5 таких побічних посилань у
+# навігації/сайдбарі/футері — без цього фільтра вони хибно розпізнавались
+# як "дайджест" із кількома можливостями.
+_GENERIC_LISTING_HEADINGS = {
+    "visit", "apply", "more", "details", "website", "subscribe",
+    "learn more", "read more", "how to apply", "news", "updates",
+    "news & updates", "news and updates", "contact", "contact us",
+    "visit campus", "visit website", "official website", "apply now",
+    "подати заявку", "детальніше", "докладніше", "джерело",
+}
+
+
 def extract_listing_items(page, skip_domains: tuple = ()) -> list:
     """Виявляє, чи сторінка (куди привів Google Alert чи інший агрегатор)
     САМА Є дайджестом кількох РІЗНИХ можливостей (як щомісячні збірки
-    Impact Funding/Colossal/Hyperallergic чи окремі сторінки-колекції
-    інших агрегаторів), а не однією конкретною можливістю — і якщо так,
+    Impact Funding тощо), а не однією конкретною статтею — і якщо так,
     розбиває на окремі пункти (назва, короткий опис, посилання).
 
-    Логіка: кожен ПУНКТ дайджесту майже завжди має власне "Apply"/
-    "Learn more"/"Details"/"подати заявку"-подібне посилання (той самий
-    PRIORITY_LINK_PATTERNS, що й у find_original_source_link). Якщо на
-    сторінці знайдено 2+ ТАКИХ посилань із РІЗНими href — це дайджест;
-    0-1 — це одна можливість, і викликач має продовжити обробляти
-    сторінку по-старому (find_original_source_link на всю сторінку).
+    Навмисно КОНСЕРВАТИВНО (перша версія хибно ловила звичайні одиничні
+    статті через побічні nav/сайдбар-посилання, що теж матчились на
+    "apply"/"visit"/"more" тощо):
+    - шукає лише в основному контент-блоці статті (entry-content/post-
+      content/content) — НЕ в усій сторінці, де сидять nav/сайдбар/футер;
+      якщо такого блоку не знайдено, вважає, що це НЕ дайджест (повертає
+      [] — сторінка обробляється як одна можливість, як і раніше);
+    - вимагає, щоб заголовок пункту був змістовним (≥15 символів) і НЕ
+      зі списку шаблонних фраз (_GENERIC_LISTING_HEADINGS);
+    - дедуплікує за НОРМАЛІЗОВАНИМ заголовком, а не лише href (однакові
+      сайдбар-блоки типу "News & updates" із різними href інакше й далі
+      проходили б як "різні" пункти);
+    - вимагає мінімум 3 РІЗНИХ таких пункти (не 2) — цей порядок величини
+      відповідає реальним дайджестам (Impact Funding: "5 new
+      opportunities"), а 2 випадкові CTA на одній статті (кнопка "Apply"
+      нагорі + посилання "офіційний сайт" у кінці) — звичайна річ навіть
+      для ОДНІЄЇ можливості."""
+    content = page.find("div", class_=re.compile(r"entry-content|post-content|content", re.I))
+    if not content:
+        return []
 
-    Навмисний компроміс: на нетипово розмічених сторінках може не
-    розпізнати дайджест (поверне []) — тоді сторінка обробляється як
-    одна можливість, як і раніше (без регресії відносно поточної
-    поведінки). Хибні СПРАЦЮВАННЯ (розпізнати дайджест там, де насправді
-    одна можливість із кількома супутніми "Apply"-посиланнями, наприклад
-    на форму й на деталі) малоймовірні, бо вимагають 2+ РІЗНИХ href."""
     seen_hrefs = set()
-    anchors = []
-    for a in page.find_all("a", href=True):
+    seen_headings = set()
+    items = []
+    for a in content.find_all("a", href=True):
         href = a["href"]
         text = a.get_text(" ", strip=True)
         if not text or not PRIORITY_LINK_PATTERNS.search(text):
@@ -2091,30 +2115,26 @@ def extract_listing_items(page, skip_domains: tuple = ()) -> list:
             continue
         if href in seen_hrefs:
             continue
-        seen_hrefs.add(href)
-        anchors.append(a)
 
-    if len(anchors) < 2:
-        return []
-
-    items = []
-    for a in anchors:
-        href = a["href"]
-        # Заголовок пункту — найближчий попередній заголовок/жирний
-        # текст перед посиланням (типове оформлення дайджестів: назва
-        # можливості жирним чи заголовком, потім опис, потім
-        # "Learn more"/"Apply"-посилання).
         heading = a.find_previous(["h1", "h2", "h3", "h4", "strong", "b"])
         title = heading.get_text(" ", strip=True) if heading else ""
+        title_norm = title.strip().lower()
+        if len(title) < 15 or title_norm in _GENERIC_LISTING_HEADINGS:
+            continue
+        if title_norm in seen_headings:
+            continue
 
-        # Опис — текст найближчого батьківського блоку (li/p/div), що
-        # містить і заголовок, і посилання.
         container = a.find_parent(["li", "p", "div"]) or a.parent
-        snippet = container.get_text(" ", strip=True) if container else a.get_text(" ", strip=True)
+        snippet = container.get_text(" ", strip=True) if container else text
+        if len(snippet) < 100:
+            continue
 
-        if not title:
-            title = snippet[:90]
+        seen_hrefs.add(href)
+        seen_headings.add(title_norm)
         items.append((title.strip(), snippet.strip()[:1500], href))
+
+    if len(items) < 3:
+        return []
     return items
 
 
