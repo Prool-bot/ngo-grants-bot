@@ -651,6 +651,20 @@ AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гра�
   пост неможливо корисно переказати текстом, і is_relevant/ukraine_relevance
   ніколи не варто "дотягувати" загальними фразами замість реальних фактів
   із джерела.
+- is_relevant = false також для НОВИННИХ заміток про те, що якийсь уряд
+  (національний, регіональний чи місцевий, наприклад "штат Одіша в Індії
+  запустив грант") чи установа ЗАПУСТИВ/ОГОЛОСИВ грантову програму, якщо
+  в тексті НЕМАЄ жодної з трьох речей одразу: конкретного дедлайну подачі,
+  конкретної суми фінансування, І посилання/опису саме ПОРЯДКУ подачі
+  заявки (куди, яку форму, які документи). Відсутність усіх трьох —
+  ознака, що це журналістське висвітлення новини про політику уряду, а не
+  реальне оголошення прийому заявок, яким читач може скористатись. НЕ
+  придумуй ukraine_relevance чи geography="весь світ" для компенсації
+  відсутніх фактів — якщо даних для подачі немає, is_relevant = false,
+  незалежно від того, наскільки тема (екологія, наука тощо) близька до
+  каналу. Це ОКРЕМЕ від правила вище про "деталі лише у відео" — тут
+  йдеться про новинні статті, де взагалі немає заявкового процесу, а не
+  лише про спосіб подачі деталей.
 - is_relevant = false також для ПЛАТНИХ комерційних курсів, тренінгів,
   практикумів чи консультацій — НАВІТЬ якщо тема самого курсу про
   гранти (наприклад "практикум з підготовки грантових заявок",
@@ -969,6 +983,21 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
 
     final_title = ai.get("title") or title
     deadline = ai.get("deadline") or deadline_hint
+
+    # Запобіжник для шумних джерел (strict_fallback=True: Google Alerts,
+    # AI-пошук) НА ВИПАДОК, якщо AI (Groq не завжди ідеально дотримується
+    # інструкцій промпта) все одно позначив is_relevant=true для звичайної
+    # новинної замітки "уряд/установа запустили програму" без жодних
+    # даних для реальної подачі заявки (приклад: новина про грант штату
+    # Одіша в Індії — ні дедлайну, ні суми, ні форми подачі, лише загальний
+    # опис). Якщо немає ОДНОЧАСНО дедлайну, суми фінансування і додаткових
+    # посилань (форма/деталі) — найімовірніше, це не оголошення прийому
+    # заявок, а журналістське висвітлення. Не застосовуємо до довірених
+    # 9 прямих джерел (strict_fallback=False) — там і так кожен запис уже
+    # підтверджений грант із довіреного сайту.
+    if strict_fallback and not deadline and not ai.get("funding") and not ai.get("extra_links"):
+        print(f"[{source_label}] Skipped (новинна замітка без дедлайну/суми/форми подачі, а не оголошення гранту): {final_title[:60]}")
+        return _SkippedIrrelevant()
 
     # Перевірка на прострочений дедлайн раніше стояла лише в 5 окремих
     # джерелах (ISAR/МФВ/УКФ/ВФ/УМФ), і там звіряла regex-дедлайн зі
@@ -1938,6 +1967,18 @@ def fetch_tweet_content(tweet_url: str) -> tuple:
         return None, None
 
 
+# Текст посилання, що майже напевно веде на справжнє першоджерело чи на
+# окрему сторінку конкретної можливості ("Apply Now", "Learn more and
+# apply here", "подати заявку" тощо). На рівні модуля (не лише всередині
+# find_original_source_link), бо той самий патерн потрібен і
+# extract_listing_items() нижче — для розпізнавання дайджест-сторінок із
+# кількома окремими можливостями (кожна зі своїм "Learn more"-посиланням).
+PRIORITY_LINK_PATTERNS = re.compile(
+    r"apply|official|more info|full details|visit|website|learn more|read more|"
+    r"подати|заявк|офіційн|детальніше|докладніше|джерел",
+    re.I)
+
+
 def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
     """Шукає на вже завантаженій сторінці (fundsforngos.org, opportunitiesradar.com
     тощо) посилання на справжнє першоджерело (сайт донора/фонду) — саме
@@ -1980,12 +2021,8 @@ def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
     # Раніше бралося просто ПЕРШЕ зовнішнє посилання на сторінці — на
     # агрегаторах типу fundsforngos це часто виявлявся сторонній сервіс
     # чи партнерський банер десь угорі, а справжнє посилання на донора
-    # лежить нижче, у кінці статті. Тому спершу шукаємо "промовисті".
-    PRIORITY_LINK_PATTERNS = re.compile(
-        r"apply|official|more info|full details|visit|website|"
-        r"подати|заявк|офіційн|детальніше|докладніше|джерел",
-        re.I)
-
+    # лежить нижче, у кінці статті. Тому спершу шукаємо "промовисті"
+    # (PRIORITY_LINK_PATTERNS — на рівні модуля, вище).
     def _scan_priority(scope):
         for a in scope.find_all("a", href=True):
             href = a["href"]
@@ -2017,6 +2054,68 @@ def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
         # результату. Не здаємось — пробуємо ще раз по ВСІЙ сторінці,
         # перш ніж визнати, що посилання на першоджерело справді немає.
     return _scan(page)
+
+
+def extract_listing_items(page, skip_domains: tuple = ()) -> list:
+    """Виявляє, чи сторінка (куди привів Google Alert чи інший агрегатор)
+    САМА Є дайджестом кількох РІЗНИХ можливостей (як щомісячні збірки
+    Impact Funding/Colossal/Hyperallergic чи окремі сторінки-колекції
+    інших агрегаторів), а не однією конкретною можливістю — і якщо так,
+    розбиває на окремі пункти (назва, короткий опис, посилання).
+
+    Логіка: кожен ПУНКТ дайджесту майже завжди має власне "Apply"/
+    "Learn more"/"Details"/"подати заявку"-подібне посилання (той самий
+    PRIORITY_LINK_PATTERNS, що й у find_original_source_link). Якщо на
+    сторінці знайдено 2+ ТАКИХ посилань із РІЗНими href — це дайджест;
+    0-1 — це одна можливість, і викликач має продовжити обробляти
+    сторінку по-старому (find_original_source_link на всю сторінку).
+
+    Навмисний компроміс: на нетипово розмічених сторінках може не
+    розпізнати дайджест (поверне []) — тоді сторінка обробляється як
+    одна можливість, як і раніше (без регресії відносно поточної
+    поведінки). Хибні СПРАЦЮВАННЯ (розпізнати дайджест там, де насправді
+    одна можливість із кількома супутніми "Apply"-посиланнями, наприклад
+    на форму й на деталі) малоймовірні, бо вимагають 2+ РІЗНИХ href."""
+    seen_hrefs = set()
+    anchors = []
+    for a in page.find_all("a", href=True):
+        href = a["href"]
+        text = a.get_text(" ", strip=True)
+        if not text or not PRIORITY_LINK_PATTERNS.search(text):
+            continue
+        netloc = urlparse(href).netloc.lower()
+        path = urlparse(href).path.lower()
+        if not netloc or any(d in netloc for d in skip_domains) or is_social_media_url(href) or is_ai_chat_share_url(href):
+            continue
+        if path.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")):
+            continue
+        if href in seen_hrefs:
+            continue
+        seen_hrefs.add(href)
+        anchors.append(a)
+
+    if len(anchors) < 2:
+        return []
+
+    items = []
+    for a in anchors:
+        href = a["href"]
+        # Заголовок пункту — найближчий попередній заголовок/жирний
+        # текст перед посиланням (типове оформлення дайджестів: назва
+        # можливості жирним чи заголовком, потім опис, потім
+        # "Learn more"/"Apply"-посилання).
+        heading = a.find_previous(["h1", "h2", "h3", "h4", "strong", "b"])
+        title = heading.get_text(" ", strip=True) if heading else ""
+
+        # Опис — текст найближчого батьківського блоку (li/p/div), що
+        # містить і заголовок, і посилання.
+        container = a.find_parent(["li", "p", "div"]) or a.parent
+        snippet = container.get_text(" ", strip=True) if container else a.get_text(" ", strip=True)
+
+        if not title:
+            title = snippet[:90]
+        items.append((title.strip(), snippet.strip()[:1500], href))
+    return items
 
 
 def process_fundsforngos_listing(digest_url: str, posted_links: set,
@@ -2194,6 +2293,48 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
             # стаття тощо) — знайти й опублікувати першоджерело для
             # невідомого агрегатора важливіше за цей рідший ризик.
             agg_page = fetch_html(real_url)
+
+            # СПОЧАТКУ перевіряємо, чи сторінка сама є ДАЙДЖЕСТОМ кількох
+            # РІЗНИХ можливостей (як щомісячні збірки Impact Funding тощо),
+            # а не однією конкретною. Якщо так — розбиваємо на окремі
+            # пункти, для КОЖНОГО окремо шукаємо першоджерело ще на крок
+            # глибше (той самий ланцюжок дайджест → агрегатор → донор, що
+            # і для fundsforngos.org/listing/), і публікуємо кожен пункт
+            # окремим постом — замість одного поста з назвою лише ПЕРШОЇ
+            # можливості з усієї збірки, а текстом усієї сторінки.
+            listing_items = extract_listing_items(agg_page, KNOWN_AGGREGATOR_DOMAINS) if agg_page else []
+            if listing_items:
+                print(f"[{alert_label}] Сторінка-дайджест: {len(listing_items)} окремих пунктів — {real_url}")
+                for item_title, item_snippet, item_href in listing_items:
+                    if counter["count"] >= GOOGLE_ALERTS_MAX_PER_RUN:
+                        break
+                    if item_href in posted_links or is_excluded(item_title) or is_excluded(item_snippet):
+                        continue
+                    item_page = fetch_html(item_href)
+                    item_source_url, item_source_label = (
+                        find_original_source_link(item_page, extra_skip_domains=KNOWN_AGGREGATOR_DOMAINS)
+                        if item_page else (None, None))
+                    item_description = (collect_paragraphs(item_page, min_len=80) if item_page else "") or item_snippet
+                    if not item_source_url:
+                        netloc = urlparse(item_href).netloc.lower().replace("www.", "")
+                        item_source_url = item_href
+                        item_source_label = f"{netloc} — джерело" if netloc else alert_label
+                    try:
+                        item_resp = build_and_send("🌍", item_title, item_source_url, item_description,
+                                                    item_source_label, posted_titles, posted_keywords,
+                                                    posted_links, strict_fallback=True)
+                        if item_resp.status_code == 200:
+                            save_posted_link(item_href)
+                            posted_links.add(item_href)
+                            if not isinstance(item_resp, _SKIP_SENTINELS):
+                                counter["count"] += 1
+                    except Exception as e:
+                        print(f"[{alert_label}] ERROR (пункт дайджесту) {item_href}: {e}")
+                    time.sleep(2)
+                save_posted_link(real_url)
+                posted_links.add(real_url)
+                continue
+
             found_url, found_label = (find_original_source_link(agg_page, extra_skip_domains=KNOWN_AGGREGATOR_DOMAINS)
                                        if agg_page else (None, None))
             if found_url:
