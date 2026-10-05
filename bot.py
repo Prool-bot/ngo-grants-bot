@@ -2703,14 +2703,19 @@ def run_monitor_wolynski(posted_links: set, posted_titles: set, posted_keywords:
 
     print(f"[Monitor Wolynski] Знайдено {len(items)} записів на сторінці")
 
+    already_posted = skipped_by_title = new_processed = 0
     for title, link in items:
         if link in posted_links:
+            already_posted += 1
             continue
         if is_excluded(title):
+            skipped_by_title += 1
+            print(f"[Monitor Wolynski] Skipped by title: {title[:60]}")
             save_posted_link(link)
             posted_links.add(link)
             continue
 
+        new_processed += 1
         article_page = fetch_html(link)
         description = collect_paragraphs(article_page, min_len=40) if article_page else title
         if not description:
@@ -2729,6 +2734,9 @@ def run_monitor_wolynski(posted_links: set, posted_titles: set, posted_keywords:
                 posted_links.add(link)
         except Exception as e:
             print(f"[Monitor Wolynski] ERROR {link}: {e}")
+
+    print(f"[Monitor Wolynski] Підсумок: {new_processed} нових оброблено, "
+          f"{already_posted} вже було раніше, {skipped_by_title} відфільтровано за заголовком")
 
 
 def run_granthub(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
@@ -2766,14 +2774,19 @@ def run_granthub(posted_links: set, posted_titles: set, posted_keywords: list) -
 
     print(f"[GrantHub] Знайдено {len(items)} записів на сторінці")
 
+    already_posted = skipped_by_title = new_processed = 0
     for title, link in items:
         if link in posted_links:
+            already_posted += 1
             continue
         if is_excluded(title):
+            skipped_by_title += 1
+            print(f"[GrantHub] Skipped by title: {title[:60]}")
             save_posted_link(link)
             posted_links.add(link)
             continue
 
+        new_processed += 1
         detail_page = fetch_html(link)
         description = collect_paragraphs(detail_page, min_len=40) if detail_page else title
         if not description:
@@ -2795,6 +2808,9 @@ def run_granthub(posted_links: set, posted_titles: set, posted_keywords: list) -
                     posted_links.add(source_url)
         except Exception as e:
             print(f"[GrantHub] ERROR {link}: {e}")
+
+    print(f"[GrantHub] Підсумок: {new_processed} нових оброблено, "
+          f"{already_posted} вже було раніше, {skipped_by_title} відфільтровано за заголовком")
 
 
 def _should_run_ai_discovery() -> bool:
