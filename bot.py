@@ -1026,13 +1026,14 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         meta.append(f"📅 <b>Дедлайн:</b> {deadline}")
     if ai.get("geography"):
         meta.append(f"🌍 <b>Географія:</b> {ai['geography']}")
+    meta_text = "\n".join(meta) if meta else None
 
     # (пріоритет, текст секції) — пріоритет 1 = найважливіше, викидається останнім
     sections = []
     if ai.get("intro"):
         sections.append((1, ai["intro"]))
-    if meta:
-        sections.append((1, "\n".join(meta)))
+    if meta_text:
+        sections.append((1, meta_text))
     if ai.get("funding"):
         sections.append((2, "💰 <b>Фінансування:</b>\n" + _bullets(ai["funding"])))
     if ai.get("application_fee"):
@@ -1063,17 +1064,25 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         sections.append((5, notes))
 
     total_content_len = sum(len(text) for _, text in sections)
-    if not sections or total_content_len < 60:
-        # Жодної секції (чи сукупно менше 60 символів) — ні intro (навіть
-        # fallback на сирий текст порожній чи символічний), ні
-        # дедлайну/географії, ні жодного іншого поля. Найімовірніша
-        # причина: сайт-джерело віддає майже порожній HTML без виконання
-        # JavaScript (сучасні сайти на React/Webflow тощо) — скрапер
-        # фізично не побачив реального тексту сторінки. Публікація голого
-        # заголовка з посиланням без жодного змісту гірша за пропуск, АЛЕ
-        # там може бути щось цінне (як і з нерозпізнаними Instagram/
-        # Facebook постами) — тож не викидаємо мовчки, а збираємо для
-        # email-дайджесту наприкінці прогону.
+    # Дедлайн/географія — метадані, не ЗМІСТ. Пост типу "Дедлайн: 17
+    # липня" без жодного реального опису (intro/funding/audience тощо)
+    # проходив повз перевірку нижче, якщо сам рядок дедлайну випадково
+    # набирав ≥60 символів — хоча по суті це той самий "порожній
+    # контент", що й зовсім без секцій. Рахуємо змістовність ОКРЕМО від
+    # meta, щоб meta-блок сам по собі не міг "витягнути" порожній пост.
+    substantive_len = sum(len(text) for _, text in sections if text != meta_text)
+    if not sections or total_content_len < 60 or substantive_len < 40:
+        # Жодної секції (чи сукупно менше 60 символів, чи лишилась лише
+        # мета-інформація без реального змісту) — ні intro (навіть
+        # fallback на сирий текст порожній чи символічний), ні жодного
+        # іншого поля. Найімовірніша причина: сайт-джерело віддає майже
+        # порожній HTML без виконання JavaScript (сучасні сайти на React/
+        # Webflow тощо) чи дату показує окремим віджетом-іконкою, а не
+        # текстом — скрапер фізично не побачив реального тексту сторінки.
+        # Публікація голого заголовка з посиланням без жодного змісту
+        # гірша за пропуск, АЛЕ там може бути щось цінне (як і з
+        # нерозпізнаними Instagram/Facebook постами) — тож не викидаємо
+        # мовчки, а збираємо для email-дайджесту наприкінці прогону.
         global _empty_content_items
         _empty_content_items.append((title, link))
         print(f"[{source_label}] Skipped (порожній контент, надіслано на email): {title[:60]}")
@@ -1204,7 +1213,17 @@ def extract_deadline(text: str) -> str:
     for pattern in DEADLINE_PATTERNS:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            return match.group(1).strip().rstrip(".,;")
+            captured = match.group(1).strip().rstrip(".,;")
+            # Деякі сторінки (напр. ІСАР Єднання) рендерять дату не в
+            # тексті поруч зі словом "Дедлайн", а окремим віджетом-
+            # іконкою (календар + число) — у текстовому потоці після
+            # слова "Дедлайн" тоді лишається лише підпис типу "заявок",
+            # без жодної цифри. Публікувати таке як дедлайн — відверто
+            # зіпсований результат (бачили на прикладі "Дедлайн: заявок").
+            # Справжня дата завжди містить хоча б одну цифру — без неї
+            # відкидаємо захоплений текст і йдемо до наступного патерну.
+            if re.search(r"\d", captured):
+                return captured
     return ""
 
 
