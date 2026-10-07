@@ -1205,6 +1205,47 @@ def collect_paragraphs(container, min_len: int = 80, exclude: list = None,
     return " ".join(chunks)[:cap]
 
 
+def _fetch_via_reader(url: str, timeout: int = 25):
+    """Фолбек через r.jina.ai (проксі-рідер), коли пряме завантаження
+    стабільно відбивається антибот-захистом — так стало з
+    www2.fundsforngos.org: не поодинокий збій, а систематичний 403 на
+    КОЖНУ сторінку (у прогоні 7.10 — усі 14 з 14). Без цього фолбека
+    find_original_source_link() взагалі не мала на чому шукати
+    першоджерело, і запис ішов одразу в "не знайдено" замість
+    нормальної спроби його розв'язати (сценарій 1/2 з логіки
+    обробки алертсів — зайти на сторінку можливості й знайти, куди
+    вона веде далі).
+
+    r.jina.ai сам ходить на сторінку зі свого боку (інший IP, інший
+    User-Agent) і повертає чистий текст/markdown із посиланнями у
+    форматі [текст](url). Із цього тексту відтворюємо мінімальний HTML
+    (справжні <a href> та <p>-абзаци), щоб ті самі
+    find_original_source_link()/collect_paragraphs(), що працюють зі
+    звичайною сторінкою, спрацювали й тут без змін."""
+    try:
+        resp = requests.get(
+            f"https://r.jina.ai/{url}",
+            headers={"User-Agent": "Mozilla/5.0", "X-With-Links-Summary": "true"},
+            timeout=timeout,
+        )
+        if resp.status_code != 200 or not resp.text:
+            return None
+        text = resp.text
+        link_pattern = re.compile(r"\[([^\]]+)\]\((https?://[^\s)]+)\)")
+        anchors_html = "".join(
+            f'<a href="{m.group(2)}">{m.group(1)}</a>\n' for m in link_pattern.finditer(text)
+        )
+        clean_text = link_pattern.sub(r"\1", text)
+        paragraphs_html = "".join(
+            f"<p>{p.strip()}</p>\n" for p in clean_text.split("\n") if len(p.strip()) > 40
+        )
+        pseudo_html = (f'<html><body><div class="entry-content">'
+                        f"{anchors_html}{paragraphs_html}</div></body></html>")
+        return BeautifulSoup(pseudo_html, "html.parser")
+    except Exception:
+        return None
+
+
 def fetch_html(url: str, timeout: int = 60, retries: int = 2):
     import warnings
     try:
@@ -1228,6 +1269,10 @@ def fetch_html(url: str, timeout: int = 60, retries: int = 2):
                 time.sleep(5)
             else:
                 print(f"[fetch_html] ERROR {url}: {e}")
+                reader_soup = _fetch_via_reader(url)
+                if reader_soup:
+                    print(f"[fetch_html] Відновлено через r.jina.ai: {url}")
+                    return reader_soup
                 return None
 
 
