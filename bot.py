@@ -2025,6 +2025,20 @@ PRIORITY_LINK_PATTERNS = re.compile(
     r"подати|заявк|офіційн|детальніше|докладніше|джерел",
     re.I)
 
+# Текст посилань, які ТЕЖ часто містять слово з PRIORITY_LINK_PATTERNS
+# (наприклад "visit" у "visit our contact form", "website" у "subscribe
+# on our website") але насправді ведуть не на сторінку гранту, а на
+# форму зв'язку/контакти, підписку чи сторінку "про нас". Причина
+# конкретного багу: допис про грант ACC (nac.foundation) отримав
+# посиланням форму зворотного зв'язку замість https://www.nac.foundation/grants —
+# бо анкор-текст форми теж містив "website"/"visit". Такі посилання
+# пропускаємо навіть якщо вони відповідають PRIORITY_LINK_PATTERNS.
+NEGATIVE_LINK_PATTERNS = re.compile(
+    r"contact|feedback|subscribe|newsletter|donate|donation|privacy|"
+    r"terms|about us|sign ?up|log ?in|контакт|зворотн|зв'язк|підписк|"
+    r"пожертв|про нас|конфіденційн",
+    re.I)
+
 
 def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
     """Шукає на вже завантаженій сторінці (fundsforngos.org, opportunitiesradar.com
@@ -2071,10 +2085,21 @@ def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
     # лежить нижче, у кінці статті. Тому спершу шукаємо "промовисті"
     # (PRIORITY_LINK_PATTERNS — на рівні модуля, вище).
     def _scan_priority(scope):
+        # Збираємо ВСІ підходящі кандидати, а не перший-ліпший: на
+        # сторінці часто є і "правильне" посилання на саму сторінку
+        # гранту (напр. /grants), і сусіднє посилання з таким самим
+        # "промовистим" словом у анкорі, що веде на форму зв'язку чи
+        # головну сторінку сайту. Серед кандидатів беремо той, чий шлях
+        # НЕ є порожнім/кореневим ("/") — бо гола адреса домену майже
+        # завжди означає "головна сторінка", а не конкретна сторінка
+        # гранту, навіть якщо текст посилання формально підійшов.
+        candidates = []
         for a in scope.find_all("a", href=True):
             href = a["href"]
             anchor_text = a.get_text(" ", strip=True)
             if not anchor_text or not PRIORITY_LINK_PATTERNS.search(anchor_text):
+                continue
+            if NEGATIVE_LINK_PATTERNS.search(anchor_text):
                 continue
             netloc = urlparse(href).netloc.lower()
             path = urlparse(href).path.lower()
@@ -2082,8 +2107,11 @@ def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
                 continue
             if path.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")):
                 continue
-            return href, netloc.replace("www.", "") + " — джерело"
-        return None, None
+            candidates.append((href, netloc.replace("www.", "") + " — джерело", path.strip("/")))
+        if not candidates:
+            return None, None
+        candidates.sort(key=lambda c: c[2] == "")
+        return candidates[0][0], candidates[0][1]
 
     content = page.find("div", class_=re.compile(r"entry-content|post-content|content", re.I))
     for scope in ([content] if content else []) + [page]:
