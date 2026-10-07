@@ -39,6 +39,17 @@ _ai_quota_exhausted_this_run = False
 # на JS-фреймворку, що не віддає текст без виконання JavaScript;
 # можливо, там є щось цінне, що варто перевірити вручну за посиланням.
 _empty_content_items = []
+
+# Записи fundsforngos.org (та інших вторинних джерел), де власну сторінку
+# можливості не вдалося завантажити (403/блокування антибот-захистом) і
+# в HTML самого RSS-запису теж не знайшлось зовнішнього посилання на
+# першоджерело. Раніше в такому випадку бот підписував публікацію
+# посиланням на САМУ (заблоковану) сторінку fundsforngos.org під лейблом
+# на кшталт "Офіційна сторінка гранту" — тобто видавав агрегатор за
+# першоджерело. Тепер такі записи не публікуються з хибним посиланням, а
+# йдуть одним email-дайджестом на перевірку вручну.
+_unresolved_source_items = []
+
 POSTED_LINKS_FILE = "posted_links.txt"
 POSTED_TITLES_FILE = "posted_titles.txt"
 
@@ -2267,10 +2278,20 @@ def process_fundsforngos_listing(digest_url: str, posted_links: set,
             description = collect_paragraphs(item_page, min_len=80) or full_text
             source_url, source_label = find_original_source_link(item_page)
         else:
+            # Сторінку конкретного пункту не вдалось завантажити (403
+            # тощо) — як і в run_fundsforngos_feed, не підписуємо
+            # публікацію посиланням на (недоступну) сторінку
+            # fundsforngos.org під виглядом першоджерела. Пробуємо
+            # знайти зовнішнє посилання прямо в HTML збірки навколо
+            # цього пункту (p), перш ніж здатися.
             description = full_text
-            source_url, source_label = None, None
+            source_url, source_label = find_original_source_link(p)
         if not source_url:
-            source_url, source_label = item_url, "fundsforngos.org — джерело"
+            _unresolved_source_items.append((title, item_url))
+            print(f"[fundsforngos] Skipped (першоджерело не знайдено, сторінка недоступна): {title[:60]}")
+            save_posted_link(item_url)
+            posted_links.add(item_url)
+            continue
 
         items_found += 1
         try:
@@ -2548,17 +2569,42 @@ def run_fundsforngos_feed(posted_links: set, posted_titles: set, posted_keywords
 
         # Окрема сторінка можливості (/individuals/, /ngos/ тощо)
         page = fetch_html(link)
+        rss_html = ""
+        if getattr(entry, "content", None):
+            rss_html = entry.content[0].get("value", "")
+        rss_html = rss_html or getattr(entry, "summary", "") or ""
+
         description = collect_paragraphs(page, min_len=80) if page else ""
         if not description:
-            html = ""
-            if getattr(entry, "content", None):
-                html = entry.content[0].get("value", "")
-            description = clean_html_description(html or getattr(entry, "summary", "") or "") or title
+            description = clean_html_description(rss_html) or title
 
-        source_url, source_label = (find_original_source_link(page, extra_skip_domains=("fundsforngos",))
-                                     if page else (None, None))
+        if page:
+            source_url, source_label = find_original_source_link(page, extra_skip_domains=("fundsforngos",))
+        else:
+            # Сторінку fundsforngos.org не вдалось завантажити (403 —
+            # антибот-блокування; траплялось і для "AWS Agentic AI
+            # Grant" — весь запис тоді йшов з посиланням на цю ж
+            # заблоковану сторінку fundsforngos.org під виглядом
+            # "офіційної сторінки гранту"). Пробуємо знайти зовнішнє
+            # посилання на першоджерело прямо в HTML самого RSS-запису —
+            # fundsforngos зазвичай додає там посилання "Apply"/"Visit"
+            # на сайт донора.
+            rss_soup = BeautifulSoup(rss_html, "html.parser") if rss_html else None
+            source_url, source_label = (find_original_source_link(rss_soup, extra_skip_domains=("fundsforngos",))
+                                         if rss_soup else (None, None))
+
         if not source_url:
-            source_url, source_label = link, "fundsforngos.org — джерело"
+            # Ні сторінка, ні RSS-опис не дали зовнішнього посилання на
+            # першоджерело. Публікувати з посиланням на САМ
+            # fundsforngos.org (агрегатор, а не першоджерело, і до того
+            # ж часто недоступний через 403) під лейблом "офіційна
+            # сторінка" — оманливо. Пропускаємо публікацію й надсилаємо
+            # на email для ручної перевірки замість цього.
+            _unresolved_source_items.append((title, link))
+            print(f"[fundsforngos.org] Skipped (першоджерело не знайдено, сторінка недоступна): {title[:60]}")
+            save_posted_link(link)
+            posted_links.add(link)
+            continue
 
         try:
             resp = build_and_send("🌍", title, source_url, description, source_label,
@@ -3119,6 +3165,17 @@ def main():
                 "щось цінне:\n\n" + "\n\n".join(lines))
         send_notification_email(
             f"NGO Grants Bot: {len(_empty_content_items)} постів із порожнім вмістом",
+            body,
+        )
+
+    if _unresolved_source_items:
+        lines = [f"- {title}\n  {url}" for title, url in _unresolved_source_items]
+        body = ("Для цих записів fundsforngos.org не вдалось знайти посилання на "
+                "справжнє першоджерело (сторінка заблокована антибот-захистом, і "
+                "в RSS-описі теж немає зовнішнього посилання) — перевірте вручну "
+                "за посиланням на сам fundsforngos.org:\n\n" + "\n\n".join(lines))
+        send_notification_email(
+            f"NGO Grants Bot: {len(_unresolved_source_items)} записів без знайденого першоджерела",
             body,
         )
 
