@@ -1938,7 +1938,15 @@ def run_tg_channel(username: str, channel_name: str,
             posted_links.add(item_key)
             continue
 
-        text = text_div.get_text(" ", strip=True)
+        # "\n" як роздільник (а не " ") — зберігає структуру абзаців/
+        # буліт-пунктів поста. З " " увесь текст склеювався в суцільне
+        # полотно без жодного переносу рядка — це й було причиною
+        # "простирадла" при сирій публікації (коли AI недоступний і
+        # використовується raw_text як є), а заразом ламало first_line
+        # нижче (text.split("\n")[0] завжди повертав увесь текст,
+        # бо "\n" у ньому просто не було).
+        text = text_div.get_text("\n", strip=True)
+        text = re.sub(r"\n{3,}", "\n\n", text)
         if len(text) < 30:
             save_posted_link(item_key)
             posted_links.add(item_key)
@@ -2024,6 +2032,37 @@ SOCIAL_MEDIA_DOMAINS = ("facebook.com", "twitter.com", "x.com", "linkedin.com",
 AI_CHAT_SHARE_DOMAINS = ("meta.ai", "chatgpt.com", "chat.openai.com",
                           "gemini.google.com", "claude.ai", "perplexity.ai",
                           "copilot.microsoft.com")
+
+
+SHORTLINK_DOMAINS = ("bit.ly", "tinyurl.com", "goo.gl", "t.co", "ow.ly",
+                      "rebrand.ly", "is.gd", "buff.ly", "lnkd.in", "cutt.ly")
+
+
+def expand_shortlink(url: str) -> str:
+    """Розкриває URL-скорочувач (bit.ly, tinyurl.com тощо) до справжньої
+    адреси призначення через HTTP-редирект. Без цього посилання-джерело
+    публікації показувало б сам сервіс-скорочувач ("bit.ly — джерело")
+    замість реального сайту організації — саме так сталось із постом
+    ENGin з каналу @grants_here. Застосовується до вже ОБРАНОГО
+    кандидата (не до кожного посилання на сторінці), щоб не плодити
+    зайві HTTP-запити під час сканування."""
+    netloc = urlparse(url).netloc.lower()
+    if not any(s in netloc for s in SHORTLINK_DOMAINS):
+        return url
+    try:
+        resolved = requests.head(url, allow_redirects=True, timeout=10,
+                                  headers={"User-Agent": "Mozilla/5.0"})
+        if resolved.url:
+            return resolved.url
+    except Exception:
+        pass
+    try:
+        resolved = requests.get(url, allow_redirects=True, timeout=10,
+                                 headers={"User-Agent": "Mozilla/5.0"}, stream=True)
+        resolved.close()
+        return resolved.url or url
+    except Exception:
+        return url
 
 
 def is_social_media_url(url: str) -> bool:
@@ -2117,6 +2156,18 @@ def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
         if self_domain:
             skip_own = skip_own + (self_domain,)
 
+    def _resolve(href):
+        """Якщо обраний кандидат — скорочувач (bit.ly тощо), розкриває
+        його до справжньої адреси й перевіряє skip-правила ще раз (бо
+        справжній домен стає відомим лише ПІСЛЯ розкриття). Повертає
+        (href, label) або (None, None), якщо після розкриття посилання
+        виявилось на себе ж / соцмережу."""
+        resolved = expand_shortlink(href)
+        netloc = urlparse(resolved).netloc.lower()
+        if not netloc or any(d in netloc for d in skip_own) or is_social_media_url(resolved) or is_ai_chat_share_url(resolved):
+            return None, None
+        return resolved, netloc.replace("www.", "") + " — джерело"
+
     def _scan(scope):
         for a in scope.find_all("a", href=True):
             href = a["href"]
@@ -2129,8 +2180,10 @@ def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
                 # обгортка навколо featured-зображення статті (клік
                 # відкриває фото в повний розмір), а не справжнє джерело.
                 continue
-            label = netloc.replace("www.", "") + " — джерело"
-            return href, label
+            resolved_href, resolved_label = _resolve(href)
+            if not resolved_href:
+                continue
+            return resolved_href, resolved_label
         return None, None
 
     # Текст посилання, що майже напевно веде на справжнє першоджерело
@@ -2163,11 +2216,15 @@ def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
                 continue
             if path.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")):
                 continue
-            candidates.append((href, netloc.replace("www.", "") + " — джерело", path.strip("/")))
+            candidates.append((href, path.strip("/")))
         if not candidates:
             return None, None
-        candidates.sort(key=lambda c: c[2] == "")
-        return candidates[0][0], candidates[0][1]
+        candidates.sort(key=lambda c: c[1] == "")
+        for href, _path in candidates:
+            resolved_href, resolved_label = _resolve(href)
+            if resolved_href:
+                return resolved_href, resolved_label
+        return None, None
 
     content = page.find("div", class_=re.compile(r"entry-content|post-content|content", re.I))
     for scope in ([content] if content else []) + [page]:
