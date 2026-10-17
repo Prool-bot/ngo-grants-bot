@@ -998,6 +998,23 @@ def _squeeze(s: str) -> str:
     return re.sub(r"[^\w]+", "", s.lower())
 
 
+_CHANNEL_PROMO_RE = re.compile(
+    r"(t\.me/|telegram|телеграм|на\s+(?:нашому\s+)?каналі|в\s+(?:нашому\s+)?каналі|"
+    r"підписуйт|підписатис|підписатись|більше\s+(?:грантів|можливостей))",
+    re.I)
+
+
+def _strip_channel_promo(text):
+    """Прибирає рядки/речення-рекламу ІНШИХ каналів, що AI переніс з
+    оригінального TG-поста ("Більше можливостей — на Telegram-каналі
+    «Грантові фішки»"). Для нашого каналу це чужа реклама, не зміст."""
+    if not text or not isinstance(text, str):
+        return text
+    parts = re.split(r"(?<=[.!?»])\s+|\n+", text)
+    kept = [x for x in parts if x.strip() and not _CHANNEL_PROMO_RE.search(x)]
+    return "\n".join(kept).strip() if len(kept) != len([x for x in parts if x.strip()]) else text
+
+
 def _is_redundant_deadline_item(item: str, deadline: str) -> bool:
     """AI-інструкція прямо каже не повторювати дедлайн поза полем deadline,
     але модель (особливо Groq) це іноді ігнорує — кладе в
@@ -1103,6 +1120,8 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
 
     # (пріоритет, текст секції) — пріоритет 1 = найважливіше, викидається останнім
     sections = []
+    ai["intro"] = _strip_channel_promo(ai.get("intro"))
+    ai["notes"] = _strip_channel_promo(ai.get("notes"))
     if ai.get("intro"):
         sections.append((1, ai["intro"]))
     if meta_text:
