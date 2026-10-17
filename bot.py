@@ -1999,7 +1999,12 @@ def run_tg_channel(username: str, channel_name: str,
         # нижче (text.split("\n")[0] завжди повертав увесь текст,
         # бо "\n" у ньому просто не було).
         text = text_div.get_text("\n", strip=True)
-        text = re.sub(r"\n{3,}", "\n\n", text)
+        # Рядки без жодної літери/цифри (лише емодзі-розділювачі "🌻", "🌍",
+        # порожні дужки "( )") — це декор оригінального поста, а не зміст.
+        # Без їх відсіву при сирій публікації (збій AI) пост виглядав як
+        # стовпчик самих емодзі, а first_line (=заголовок) міг стати "🌍".
+        # Абзаци склеюємо порожнім рядком, щоб структура лишалась читною.
+        text = "\n\n".join(l.strip() for l in text.split("\n") if re.search(r"\w", l))
         if len(text) < 30:
             save_posted_link(item_key)
             posted_links.add(item_key)
