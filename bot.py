@@ -991,6 +991,11 @@ COUNTRY_RESTRICTED_PATTERNS = [
 ]
 
 def is_likely_country_restricted(text: str) -> bool:
+    # Якщо Україна згадана в тексті — це не "лише для однієї країни, що
+    # виключає Україну" ("citizens of Ukraine only" тощо): не відсікаємо,
+    # рішення лишається за AI.
+    if re.search(r"\bUkrain|Україн", text, re.IGNORECASE):
+        return False
     return any(re.search(p, text, re.IGNORECASE) for p in COUNTRY_RESTRICTED_PATTERNS)
 
 
@@ -2103,6 +2108,32 @@ AI_CHAT_SHARE_DOMAINS = ("meta.ai", "chatgpt.com", "chat.openai.com",
                           "copilot.microsoft.com")
 
 
+# Домени, які НІКОЛИ не бувають першоджерелом можливості: сервіси Google
+# (магазин застосунків, карти, політики, документація), стрічки відео/
+# картинок, месенджери, форми, відгуки. Це типові посилання з футерів
+# і бічних панелей сторінок. Раніше fallback "перше зовнішнє посилання"
+# підхоплював їх як "першоджерело", а оскільки такі посилання однакові
+# на сотнях різних сторінок, усі наступні записи відсікались як
+# "дубль після резолюції першоджерела" — хоча це були різні гранти.
+JUNK_SOURCE_DOMAINS = (
+    "play.google.com", "maps.google.com", "policies.google.com",
+    "developers.google.com", "support.google.com", "accounts.google.com",
+    "news.google.com", "scholar.google.com", "translate.goog",
+    "apps.apple.com", "itunes.apple.com", "microsoft.com", "ms-windows-store",
+    "pinterest.com", "vimeo.com", "soundcloud.com", "substack.com",
+    "wa.me", "telegram.me", "telegram.org", "signal.group",
+    "trustpilot.com", "support.artsy.net", "userway.org", "e2ma.net",
+    "forms.office.com", "forms.cloud.microsoft", "forms.gle",
+    "cloudflare.com", "wordpress.org", "wordpress.com", "gravatar.com",
+    "fbcdn.net", "twimg.com", "gstatic.com", "googleusercontent.com",
+)
+
+
+def is_junk_source_url(url: str) -> bool:
+    netloc = urlparse(url).netloc.lower()
+    return any(d in netloc for d in JUNK_SOURCE_DOMAINS)
+
+
 SHORTLINK_DOMAINS = ("bit.ly", "tinyurl.com", "goo.gl", "t.co", "ow.ly",
                       "rebrand.ly", "is.gd", "buff.ly", "lnkd.in", "cutt.ly")
 
@@ -2204,7 +2235,7 @@ NEGATIVE_LINK_PATTERNS = re.compile(
     re.I)
 
 
-def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
+def find_original_source_link(page, extra_skip_domains: tuple = (), priority_only: bool = False) -> tuple:
     """Шукає на вже завантаженій сторінці (fundsforngos.org, opportunitiesradar.com
     тощо) посилання на справжнє першоджерело (сайт донора/фонду) — саме
     так, як це робиться вручну: заходимо на сторінку конкретної можливості
@@ -2233,7 +2264,8 @@ def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
         виявилось на себе ж / соцмережу."""
         resolved = expand_shortlink(href)
         netloc = urlparse(resolved).netloc.lower()
-        if not netloc or any(d in netloc for d in skip_own) or is_social_media_url(resolved) or is_ai_chat_share_url(resolved):
+        if (not netloc or any(d in netloc for d in skip_own) or is_social_media_url(resolved)
+                or is_ai_chat_share_url(resolved) or is_junk_source_url(resolved)):
             return None, None
         return resolved, netloc.replace("www.", "") + " — джерело"
 
@@ -2242,7 +2274,8 @@ def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
             href = a["href"]
             netloc = urlparse(href).netloc.lower()
             path = urlparse(href).path.lower()
-            if not netloc or any(d in netloc for d in skip_own) or is_social_media_url(href) or is_ai_chat_share_url(href):
+            if (not netloc or any(d in netloc for d in skip_own) or is_social_media_url(href)
+                    or is_ai_chat_share_url(href) or is_junk_source_url(href)):
                 continue
             if path.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")):
                 # Пряме посилання на файл картинки — майже завжди це
@@ -2281,7 +2314,8 @@ def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
                 continue
             netloc = urlparse(href).netloc.lower()
             path = urlparse(href).path.lower()
-            if not netloc or any(d in netloc for d in skip_own) or is_social_media_url(href) or is_ai_chat_share_url(href):
+            if (not netloc or any(d in netloc for d in skip_own) or is_social_media_url(href)
+                    or is_ai_chat_share_url(href) or is_junk_source_url(href)):
                 continue
             if path.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")):
                 continue
@@ -2300,6 +2334,12 @@ def find_original_source_link(page, extra_skip_domains: tuple = ()) -> tuple:
         found = _scan_priority(scope)
         if found[0]:
             return found
+
+    if priority_only:
+        # Лише "промовисті" посилання (Apply/Official/Visit...). Жодного
+        # "перше зовнішнє посилання на сторінці": для сторінки, що може
+        # САМА бути першоджерелом, воно майже завжди з футера/сайдбара.
+        return None, None
 
     if content:
         found = _scan(content)
@@ -2523,6 +2563,7 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
             posted_links.add(real_url)
             continue
 
+        original_alert_url = real_url
         description = None
         if is_social_media_url(real_url):
             netloc_check = urlparse(real_url).netloc.lower()
@@ -2622,7 +2663,17 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
                 posted_links.add(real_url)
                 continue
 
-            found_url, found_label = (find_original_source_link(agg_page, extra_skip_domains=KNOWN_AGGREGATOR_DOMAINS)
+            # Сценарій 1 має пріоритет: якщо сторінка НЕ з відомого
+            # агрегатора, вона цілком може бути першоджерелом сама. Тоді
+            # шукаємо глибше лише за явними "Apply/Official/Visit"-
+            # посиланнями (priority_only), без fallback на "перше
+            # зовнішнє посилання" з футера. Не знайшли — лишається
+            # сама сторінка з алерта. Для відомих агрегаторів — повний
+            # пошук, як раніше.
+            is_known_aggregator = any(d in urlparse(real_url).netloc.lower() for d in KNOWN_AGGREGATOR_DOMAINS)
+            found_url, found_label = (find_original_source_link(
+                                          agg_page, extra_skip_domains=KNOWN_AGGREGATOR_DOMAINS,
+                                          priority_only=not is_known_aggregator)
                                        if agg_page else (None, None))
             if found_url:
                 real_url, netloc_source = found_url, found_label
@@ -2648,8 +2699,13 @@ def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
             resp = build_and_send("🌍", raw_title, real_url, description, source_label,
                                    posted_titles, posted_keywords, posted_links, strict_fallback=True)
             if resp.status_code == 200:
-                save_posted_link(real_url)
-                posted_links.add(real_url)
+                # Зберігаємо і знайдене першоджерело, і ОРИГІНАЛЬНУ адресу
+                # з алерта — інакше при підміні посилання запис знову
+                # обробляється в кожному прогоні.
+                for u in (real_url, original_alert_url):
+                    if u not in posted_links:
+                        save_posted_link(u)
+                        posted_links.add(u)
                 if not isinstance(resp, _SKIP_SENTINELS):
                     counter["count"] += 1
         except Exception as e:
