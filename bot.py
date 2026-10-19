@@ -990,6 +990,39 @@ COUNTRY_RESTRICTED_PATTERNS = [
     r"\brestricted to [A-Z][a-zA-Z]+ (nationals|citizens|residents)\b",
 ]
 
+# Країни/регіони/демонім-прикметники в ЗАГОЛОВКУ запису агрегатора
+# (fundsforngos: "(Canada)", "(UK)", "... for Irish Producers", "in
+# Tasmania"). fundsforngos чітко маркує країну програми в заголовку —
+# це майже завжди "лише для резидентів цієї країни". Такі записи
+# відсікаємо ще до завантаження сторінки й до AI. Україна, "Global",
+# "International", "Worldwide" у заголовку — виняток (не відсікаємо).
+_TITLE_COUNTRY_WORDS = (
+    "U.S.", "ASEAN", "Canada", "Canadian", "Ontario", "Quebec", "British Columbia", "Alberta",
+    "Australia", "Australian", "Tasmania", "Victoria", "New South Wales",
+    "Queensland", "New Zealand", "UK", "United Kingdom", "England", "Scotland",
+    "Wales", "Northern Ireland", "Ireland", "Irish", "Dublin", "Derbyshire",
+    "Oxfordshire", "US", "USA", "United States", "American", "India", "Indian",
+    "Nepal", "Pakistan", "Bangladesh", "Sri Lanka", "Philippines", "Indonesia",
+    "Malaysia", "Thailand", "Vietnam", "Cambodia", "Japan", "Korea", "China",
+    "Lebanon", "Iraq", "Iraqi", "Jordan", "Syria", "Yemen", "Egypt", "Libya",
+    "Tunisia", "Morocco", "Algeria", "Nigeria", "Kenya", "Uganda", "Tanzania",
+    "Malawi", "Zambia", "Zimbabwe", "Ghana", "Ethiopia", "Somalia", "Sudan",
+    "South Africa", "Rwanda", "Mozambique", "Finland", "Finnish", "Sweden",
+    "Norway", "Denmark", "Iceland", "Bulgaria", "Bulgarian", "Romania",
+    "Hungary", "Czech", "Slovakia", "Serbia", "Croatia", "Greece", "Turkey",
+    "Brazil", "Mexico", "Colombia", "Peru", "Argentina", "Chile",
+)
+_TITLE_COUNTRY_RE = re.compile(
+    r"(?<![A-Za-z])(?:" + "|".join(re.escape(w) for w in _TITLE_COUNTRY_WORDS) + r")(?![A-Za-z])")
+_TITLE_GLOBAL_RE = re.compile(r"Ukrain|Global|Worldwide", re.I)
+
+
+def is_title_country_restricted(title: str) -> bool:
+    if _TITLE_GLOBAL_RE.search(title):
+        return False
+    return bool(_TITLE_COUNTRY_RE.search(title))
+
+
 def is_likely_country_restricted(text: str) -> bool:
     # Якщо Україна згадана в тексті — це не "лише для однієї країни, що
     # виключає Україну" ("citizens of Ukraine only" тощо): не відсікаємо,
@@ -2477,7 +2510,7 @@ def process_fundsforngos_listing(digest_url: str, posted_links: set,
         deadline_match = re.search(r"Deadline\s*:?\s*(.+)", full_text, re.IGNORECASE)
         deadline_hint = deadline_match.group(1).split("\n")[0].strip() if deadline_match else ""
 
-        if is_excluded(title) or is_excluded(full_text):
+        if is_excluded(title) or is_excluded(full_text) or is_title_country_restricted(title):
             save_posted_link(item_url)
             posted_links.add(item_url)
             continue
@@ -2790,6 +2823,12 @@ def run_fundsforngos_feed(posted_links: set, posted_titles: set, posted_keywords
 
         if "/listing/" in link:
             process_fundsforngos_listing(link, posted_links, posted_titles, posted_keywords, counter)
+            save_posted_link(link)
+            posted_links.add(link)
+            continue
+
+        if is_title_country_restricted(title):
+            print(f"[fundsforngos.org] Skipped (країна в заголовку — програма для конкретної країни): {title[:60]}")
             save_posted_link(link)
             posted_links.add(link)
             continue
