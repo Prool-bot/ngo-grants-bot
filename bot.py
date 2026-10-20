@@ -997,7 +997,7 @@ COUNTRY_RESTRICTED_PATTERNS = [
 # відсікаємо ще до завантаження сторінки й до AI. Україна, "Global",
 # "International", "Worldwide" у заголовку — виняток (не відсікаємо).
 _TITLE_COUNTRY_WORDS = (
-    "U.S.", "ASEAN", "Canada", "Canadian", "Ontario", "Quebec", "British Columbia", "Alberta",
+    "U.S.", "ASEAN", "Papua New Guinea", "Papua", "Guinea", "Fiji", "Samoa", "Tonga", "Vanuatu", "Solomon Islands", "Timor", "Laos", "Myanmar", "Mongolia", "Afghanistan", "Haiti", "Jamaica", "Caribbean", "Pacific Islands", "Canada", "Canadian", "Ontario", "Quebec", "British Columbia", "Alberta",
     "Australia", "Australian", "Tasmania", "Victoria", "New South Wales",
     "Queensland", "New Zealand", "UK", "United Kingdom", "England", "Scotland",
     "Wales", "Northern Ireland", "Ireland", "Irish", "Dublin", "Derbyshire",
@@ -1322,6 +1322,15 @@ def _fetch_via_reader(url: str, timeout: int = 25):
         if resp.status_code != 200 or not resp.text:
             return None
         text = resp.text
+        # r.jina.ai, коли сам не зміг дістати цільову сторінку (403
+        # тощо), все одно повертає 200 із текстом-попередженням ("Warning:
+        # Target URL returned error 403"). Це НЕ вміст сторінки — інакше
+        # fetch_html повернув би "порожню" сторінку без жодних посилань
+        # як успішне відновлення, а запасний пошук (наприклад, у RSS)
+        # навіть не запускався б.
+        head = text[:800]
+        if "Target URL returned error" in head or "Warning:" in head[:200] or len(text.strip()) < 200:
+            return None
         link_pattern = re.compile(r"\[([^\]]+)\]\((https?://[^\s)]+)\)")
         anchors_html = "".join(
             f'<a href="{m.group(2)}">{m.group(1)}</a>\n' for m in link_pattern.finditer(text)
@@ -2844,9 +2853,10 @@ def run_fundsforngos_feed(posted_links: set, posted_titles: set, posted_keywords
         if not description:
             description = clean_html_description(rss_html) or title
 
+        source_url, source_label = (None, None)
         if page:
             source_url, source_label = find_original_source_link(page, extra_skip_domains=("fundsforngos",))
-        else:
+        if not source_url:
             # Сторінку fundsforngos.org не вдалось завантажити (403 —
             # антибот-блокування; траплялось і для "AWS Agentic AI
             # Grant" — весь запис тоді йшов з посиланням на цю ж
