@@ -49414,3 +49414,6 @@ http://gurt.org.ua/news/grants/112778/#0
 tg_GrantUP_17249
 https://www.scientifyresearch.org/grant/consulting-i-o-psychology-research-grant-apf-worldwide/
 https://www2.fundsforngos.org/listing/turning-business-potential-into-progress-funding-and-growth-opportunities/
+tg_grantsua_1736
+tg_GrantUP_17250
+https://www.chatdiagram.com/it/example/timeline-research-grant-gantt
