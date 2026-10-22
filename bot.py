@@ -997,7 +997,7 @@ COUNTRY_RESTRICTED_PATTERNS = [
 # відсікаємо ще до завантаження сторінки й до AI. Україна, "Global",
 # "International", "Worldwide" у заголовку — виняток (не відсікаємо).
 _TITLE_COUNTRY_WORDS = (
-    "U.S.", "ASEAN", "Papua New Guinea", "Papua", "Guinea", "Fiji", "Samoa", "Tonga", "Vanuatu", "Solomon Islands", "Timor", "Laos", "Myanmar", "Mongolia", "Afghanistan", "Haiti", "Jamaica", "Caribbean", "Pacific Islands", "Canada", "Canadian", "Ontario", "Quebec", "British Columbia", "Alberta",
+    "U.S.", "ASEAN", "Tasmanian", "Whangārei", "Whangarei", "Auckland", "Wellington", "Germany", "German", "Emmy Noether", "Maori", "Māori", "Papua New Guinea", "Papua", "Guinea", "Fiji", "Samoa", "Tonga", "Vanuatu", "Solomon Islands", "Timor", "Laos", "Myanmar", "Mongolia", "Afghanistan", "Haiti", "Jamaica", "Caribbean", "Pacific Islands", "Canada", "Canadian", "Ontario", "Quebec", "British Columbia", "Alberta",
     "Australia", "Australian", "Tasmania", "Victoria", "New South Wales",
     "Queensland", "New Zealand", "UK", "United Kingdom", "England", "Scotland",
     "Wales", "Northern Ireland", "Ireland", "Irish", "Dublin", "Derbyshire",
@@ -2540,6 +2540,13 @@ def process_fundsforngos_listing(digest_url: str, posted_links: set,
             description = full_text
             source_url, source_label = find_original_source_link(p)
         if not source_url:
+            found_url, found_label, found_snippet = find_source_via_search(title)
+            if found_url:
+                print(f"[fundsforngos] Першоджерело знайдено пошуком: {found_url}")
+                source_url, source_label = found_url, found_label
+                src_page = fetch_html(found_url)
+                description = (collect_paragraphs(src_page, min_len=80) if src_page else "") or found_snippet or description
+        if not source_url:
             _unresolved_source_items.append((title, item_url))
             print(f"[fundsforngos] Skipped (першоджерело не знайдено, сторінка недоступна): {title[:60]}")
             save_posted_link(item_url)
@@ -2811,6 +2818,51 @@ def run_opportunities_radar(posted_links: set, posted_titles: set, posted_keywor
 # FUNDSFORNGOS.ORG — пряма стрічка (не тільки через Google Alerts)
 # ---------------------------------------------------------------------------
 
+def find_source_via_search(title: str):
+    """Коли сторінка агрегатора (fundsforngos) недоступна (403) і в RSS
+    немає зовнішнього посилання — шукаємо першоджерело ПО НАЗВІ через
+    Tavily (той самий ключ, що й для AI-пошуку): беремо перший результат
+    не з агрегатора/соцмережі/службових доменів, чия назва помітно
+    збігається зі словами заголовка. Повертає (url, label, snippet) або
+    (None, None, None). Без TAVILY_API_KEY чи при збої — (None, None, None)."""
+    key = os.getenv("TAVILY_API_KEY")
+    if not key or not title:
+        return None, None, None
+    try:
+        resp = requests.post(
+            "https://api.tavily.com/search",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={"query": title, "search_depth": "basic", "max_results": 8},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        results = resp.json().get("results", [])
+    except Exception as e:
+        print(f"[пошук першоджерела] ERROR '{title[:50]}': {e}")
+        return None, None, None
+
+    def words(t):
+        return {w for w in re.findall(r"[a-zа-яіїєґ0-9]{4,}", t.lower())}
+    wanted = words(title)
+    if not wanted:
+        return None, None, None
+    for r in results:
+        url = (r.get("url") or "").strip()
+        rtitle = (r.get("title") or "").strip()
+        if not url:
+            continue
+        netloc = urlparse(url).netloc.lower()
+        if (any(d in netloc for d in KNOWN_AGGREGATOR_DOMAINS)
+                or any(d in netloc for d in ("developmentaid", "grantwatch", "devex", "opportunitydesk",
+                                              "scholarshipdb", "mastersportal", "youtube.com", "reddit.com"))
+                or is_social_media_url(url) or is_junk_source_url(url) or is_ai_chat_share_url(url)):
+            continue
+        overlap = len(wanted & words(rtitle + " " + (r.get("content") or "")[:300])) / len(wanted)
+        if overlap >= 0.5:
+            return url, netloc.replace("www.", "") + " — джерело", (r.get("content") or "")
+    return None, None, None
+
+
 def run_fundsforngos_feed(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
     feed = feedparser.parse(FUNDSFORNGOS_RSS)
     if not feed.entries:
@@ -2868,6 +2920,16 @@ def run_fundsforngos_feed(posted_links: set, posted_titles: set, posted_keywords
             rss_soup = BeautifulSoup(rss_html, "html.parser") if rss_html else None
             source_url, source_label = (find_original_source_link(rss_soup, extra_skip_domains=("fundsforngos",))
                                          if rss_soup else (None, None))
+
+        if not source_url:
+            # Останній шанс: шукаємо першоджерело за назвою (Tavily).
+            found_url, found_label, found_snippet = find_source_via_search(title)
+            if found_url:
+                print(f"[fundsforngos.org] Першоджерело знайдено пошуком: {found_url}")
+                source_url, source_label = found_url, found_label
+                src_page = fetch_html(found_url)
+                src_desc = collect_paragraphs(src_page, min_len=80) if src_page else ""
+                description = src_desc or found_snippet or description
 
         if not source_url:
             # Ні сторінка, ні RSS-опис не дали зовнішнього посилання на
