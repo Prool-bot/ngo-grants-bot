@@ -2150,6 +2150,10 @@ AI_CHAT_SHARE_DOMAINS = ("meta.ai", "chatgpt.com", "chat.openai.com",
                           "copilot.microsoft.com")
 
 
+# (Google/Microsoft Forms тут НЕ перелічені навмисно: реєстраційна форма
+# — це якраз цільове посилання для заявки; їх колись помилково було
+# додано сюди, і через це пости з "Форма реєстрації" втрачали лінк і
+# отримували посилання на сам TG-канал.)
 # Домени, які НІКОЛИ не бувають першоджерелом можливості: сервіси Google
 # (магазин застосунків, карти, політики, документація), стрічки відео/
 # картинок, месенджери, форми, відгуки. Це типові посилання з футерів
@@ -2165,7 +2169,6 @@ JUNK_SOURCE_DOMAINS = (
     "pinterest.com", "vimeo.com", "soundcloud.com", "substack.com",
     "wa.me", "telegram.me", "telegram.org", "signal.group",
     "trustpilot.com", "support.artsy.net", "userway.org", "e2ma.net",
-    "forms.office.com", "forms.cloud.microsoft", "forms.gle",
     "cloudflare.com", "wordpress.org", "wordpress.com", "gravatar.com",
     "fbcdn.net", "twimg.com", "gstatic.com", "googleusercontent.com",
 )
@@ -2259,7 +2262,8 @@ def fetch_tweet_content(tweet_url: str) -> tuple:
 # кількома окремими можливостями (кожна зі своїм "Learn more"-посиланням).
 PRIORITY_LINK_PATTERNS = re.compile(
     r"apply|official|more info|full details|visit|website|learn more|read more|"
-    r"подати|заявк|офіційн|детальніше|докладніше|джерел",
+    r"подати|заявк|офіційн|детальніше|докладніше|джерел|"
+    r"реєстр|анкет|register|registration|sign up here",
     re.I)
 
 # Текст посилань, які ТЕЖ часто містять слово з PRIORITY_LINK_PATTERNS
