@@ -54699,3 +54699,6 @@ https://www.prostir.ua/?grants=tender-na-nadannya-lohistychnyh-posluh-schodo-poj
 tg_egrants_ua_381
 https://opportunitiesradar.com/riken-cbs-summer-program-2027/
 https://www.prostir.ua/?grants=postachalnyk-posluh-kompaniji-intehratora-prohramy-buhhalterskoho-obliku#0
+tg_grantovyphishky_9408
+tg_GrantUP_17461
+https://opportunitiesradar.com/nusuk-app-challenge-2026/
