@@ -892,7 +892,7 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
     # більше MAX_WAIT секунд — якщо сервер просить довше, це означає
     # "квоту сьогодні вже не відновити", і краще одразу впасти у fallback,
     # ніж зависнути.
-    MAX_WAIT = 30
+    MAX_WAIT = 65
     max_retries = 3
     for attempt in range(max_retries):
         try:
@@ -904,12 +904,14 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
                 timeout=30,
             )
             if resp.status_code == 429:
-                raw_wait = int(resp.headers.get("Retry-After", 10 * (attempt + 1)))
+                try:
+                    raw_wait = max(1, float(resp.headers.get("Retry-After", 10 * (attempt + 1))))
+                except (TypeError, ValueError):
+                    raw_wait = 10 * (attempt + 1)
                 if raw_wait > MAX_WAIT:
                     print(f"[AI rate limit] {source}: 429, сервер просить "
-                          f"{raw_wait}с — це схоже на вичерпану денну квоту, "
-                          f"а не короткий сплеск. Не чекаю, одразу fallback, "
-                          f"і вмикаю строгий режим для решти прогону.")
+                          f"{raw_wait}с — понад допустиму паузу. "
+                          f"Відкладаю обробку до наступного прогону.")
                     _ai_quota_exhausted_this_run = True
                     break
                 print(f"[AI rate limit] {source}: 429, чекаю {raw_wait}с "
