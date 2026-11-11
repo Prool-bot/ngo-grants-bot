@@ -54937,3 +54937,7 @@ https://www.prostir.ua/?grants=tender-na-zakupivlyu-8-vosmy-portatyvnyh-zaryadny
 https://www.prostir.ua/?grants=zapyt-tsinovyh-propozytsij-na-zakupivlyu-posluh-z-pidhotovky-istorij-uspihu-zakladiv-profesijnoji-osvity-uchasnykiv-projektu-edup-vklyuchayuchy-provedennya-intervyu-pidhotovku-tekstiv-pereklad#0
 tg_GrantUP_17478
 https://www.prostir.ua/?grants=zakupivlya-posluh-z-orhanizatsiji-ta-nadannya-indyvidualnyh-oflajn-konsultatsij-dityam-z-rozladamy-autystychnoho-spektra-ras-taabo-intelektualnymy-porushennyamy#0
+tg_grantsua_1766
+tg_grantovyphishky_9412
+tg_GrantUP_17480
+https://www.prostir.ua/?grants=vidbir-postachalnyka-posluh-iz-mentorskoji-pidtrymky-komandy-z-pytan-vykorystannya-instrumentiv-shtuchnoho-intelektu#0
