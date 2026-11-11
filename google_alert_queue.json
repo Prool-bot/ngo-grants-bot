@@ -2,25 +2,55 @@
   "https://www.facebook.com/100067245691943/posts/we-are-delighted-to-share-that-our-doctoral-student-john-munday-ms-ccc-slp-is-on/1312103557707822/": {
     "title": "John Munday receives 2027 Vicki Lord Larson research grant for communication sciences",
     "snippet": "With this research grant , Claudia receives support to conduct research that will advance the discipline of communication sciences and disorders.",
-    "attempts": 4,
+    "attempts": 5,
     "last_status": "retry"
   },
   "https://www.racgp.org.au/advocacy/member-consultations/open-consultations/tga-interim-scheduling-decision-isotretinoin": {
     "title": "Therapeutic Goods Administration (TGA) interim scheduling decision (isotretinoin) - RACGP",
     "snippet": "Research Grant Partnerships · Education Research Grant Program · RACGP research strategy · Practice-Based Research Networks (PBRNs) · University ...",
-    "attempts": 3,
+    "attempts": 4,
     "last_status": "retry"
   },
   "https://neoskosmos.com/en/2026/11/11/features/major-australian-research-grant-backs-study-recognising-children-as-victims-in-their-own-right/": {
     "title": "Major Australian research grant backs study recognising children as victims in their own right",
     "snippet": "Major Australian research grant backs study recognising children as victims in their own right. For more than 15 years, award-winning academic ...",
-    "attempts": 3,
+    "attempts": 4,
     "last_status": "retry"
   },
   "https://atomgrants.com/grant/foundation-for-womens-cancer-move4her-research-grant/similar-grants": {
     "title": "Foundation for Women's Cancer (FWC) Move4Her Research Grant 2026 - Atom Grants",
     "snippet": "Foundation for Women's Cancer (FWC) Move4Her Research Grant supports early-career researchers studying any gynecologic cancer, using Move4Her ...",
-    "attempts": 1,
+    "attempts": 2,
     "last_status": "source_incomplete"
+  },
+  "https://www.ntu.edu.sg/computing/news-events/events/detail/2026/11/12/default-calendar/mechanically-assured-kernel-components--safe-and-correct-by-construction--in-the-age-of-coding-agents": {
+    "title": "Mechanically Assured Kernel Components: Safe and Correct by Construction, in the Age of ...",
+    "snippet": "He received the SOSP 2025 Best Paper Award, a 2024 eBPF Foundation Research Grant with Professor Su, and the 2026 Google PhD Fellowship in Privacy, ...",
+    "attempts": 1,
+    "last_status": "retry"
+  },
+  "https://www.reddit.com/r/academia/comments/1xt2a2o/thoughts_on_kalshis_1m_research_grant/": {
+    "title": "Thoughts on Kalshi's $1M research grant ? : r/academia - Reddit",
+    "snippet": "Thoughts on Kalshi's $1M research grant ? Research issues. Kalshi is funding up to 50 projects studying the midterms. Seems like a good opportunity ...",
+    "attempts": 1,
+    "last_status": "source_unavailable"
+  },
+  "https://oncodaily.com/grant/fondation-quancer-629341": {
+    "title": "Fondation Quancer Cancer Prevention Research Grant 2027 - Oncodaily",
+    "snippet": "The Fondation Quancer Cancer Prevention Research Grant 2027 offers up to CHF 150000 over two years for early career researchers at Swiss ...",
+    "attempts": 1,
+    "last_status": "retry"
+  },
+  "https://linth24.ch/articles/417968-dr-med-timur-yurttas-gewinnt-clinical-research-grant-2026": {
+    "title": "Dr. med. Timur Yurttas gewinnt Clinical Research Grant 2026 | Gesundheit - Linth24",
+    "snippet": "«Der Clinical Research Grant 2026 ist eine grosse Anerkennung unserer Forschungsarbeit. Der gewonnene Preis ermöglicht uns, das Potenzial der Flow ...",
+    "attempts": 1,
+    "last_status": "retry"
+  },
+  "https://www.ptbotoday.ca/2026/11/11/trent-university-and-prhc-team-up-to-improve-hospital-care-for-older-adults-through-new-research-grant/": {
+    "title": "Trent University and PRHC team up to improve hospital care for older adults through new ...",
+    "snippet": "Trent University and PRHC team up to improve hospital care for older adults through new research grant . By Freq 90.5/ 96.7 WOW FM News Staff Nov 11 ...",
+    "attempts": 1,
+    "last_status": "retry"
   }
 }
