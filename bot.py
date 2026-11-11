@@ -954,6 +954,10 @@ def _dedupe_paragraphs(msg: str) -> str:
             kept.append(para)
     return "\n\n".join(kept)
 
+class _PreviewOpportunity:
+    pass
+
+
 class _RetryOpportunity:
     status_code = 503
     text = "retry: temporary processing failure"
@@ -1321,6 +1325,10 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
     # усталеного вигляду каналу. Вимикаємо прев'ю саме для таких постів.
     is_file_link = link.split("?")[0].lower().endswith(
         (".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"))
+
+    if ALERT_DRY_RUN:
+        print(f"[Google Alerts] Готовий допис, {len(msg)} символів HTML: {link}")
+        return _PreviewOpportunity()
 
     resp = send_telegram_message(msg, disable_preview=is_file_link)
     print(resp.text)
@@ -2630,6 +2638,8 @@ def process_fundsforngos_listing(digest_url: str, posted_links: set,
 
 
 ALERT_QUEUE_FILE = "google_alert_queue.json"
+ALERT_DRY_RUN = os.getenv("GOOGLE_ALERTS_DRY_RUN") == "1"
+ALERT_REPLAY = ALERT_DRY_RUN and os.getenv("GOOGLE_ALERTS_REPLAY") == "1"
 ALERT_ARCHIVE_ROOT = "https://raw.githubusercontent.com/Prool-bot/ngo-grants-facebook/main/archive/telegram/"
 _alert_archive = None
 
@@ -2698,6 +2708,8 @@ def load_alert_queue():
 
 
 def save_alert_queue(queue):
+    if ALERT_DRY_RUN:
+        return
     temporary = ALERT_QUEUE_FILE + ".tmp"
     with open(temporary, "w", encoding="utf-8") as state:
         json.dump(queue, state, ensure_ascii=False, indent=2)
@@ -2837,6 +2849,8 @@ def process_alert_candidate(url, item, queue, posted_links, posted_titles, poste
     label = "Google Alerts: " + urlparse(official_url).netloc.lower()
     result = build_and_send("🌍", title, official_url, description, label,
                             posted_titles, posted_keywords, posted_links, strict_fallback=True)
+    if isinstance(result, _PreviewOpportunity):
+        return "preview"
     if isinstance(result, _SkippedDuplicate):
         return "duplicate"
     if isinstance(result, _SkippedIrrelevant):
@@ -2853,7 +2867,10 @@ def process_alert_candidate(url, item, queue, posted_links, posted_titles, poste
 
 
 def run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_social):
-    queue = load_alert_queue()
+    queue = {} if ALERT_REPLAY else load_alert_queue()
+    if ALERT_REPLAY:
+        posted_links, posted_titles, posted_keywords = set(), set(), []
+        load_alert_archive()
     for index, feed_url in enumerate(GOOGLE_ALERT_FEEDS, 1):
         collect_google_alert(feed_url, f"Google Alerts #{index}", posted_links, queue)
     if not queue:
@@ -2862,7 +2879,9 @@ def run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_s
     stats = {}
     published = 0
     # Take a snapshot so children are persisted even when this run reaches its limit.
-    for url in list(queue):
+    for index, url in enumerate(list(queue)):
+        if ALERT_DRY_RUN and index >= 30:
+            break
         if published >= GOOGLE_ALERTS_MAX_PER_RUN:
             break
         item = queue[url]
@@ -2873,8 +2892,8 @@ def run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_s
             print(f"[Google Alerts] {type(error).__name__}: {item['title'][:100]}")
             status = "retry"
         stats[status] = stats.get(status, 0) + 1
-        if status in {"published", "duplicate", "expanded", "excluded", "filtered"}:
-            if url not in posted_links:
+        if status in {"published", "duplicate", "expanded", "excluded", "filtered", "preview"}:
+            if not ALERT_DRY_RUN and url not in posted_links:
                 save_posted_link(url)
                 posted_links.add(url)
             del queue[url]
@@ -3569,6 +3588,10 @@ def main():
     posted_links = load_posted_links()
     posted_titles = load_posted_titles()
     posted_keywords = load_posted_keywords()
+
+    if ALERT_DRY_RUN:
+        run_google_alerts(posted_links, posted_titles, posted_keywords, [])
+        return
 
     run_chaszmin(posted_links, posted_titles, posted_keywords)
     run_simple_source(GURT_RSS,     "ГУРТ — джерело",                posted_links,
