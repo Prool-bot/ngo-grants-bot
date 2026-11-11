@@ -5,7 +5,7 @@ import time
 import hashlib
 import feedparser
 import requests
-from urllib.parse import urlparse, parse_qs, urljoin
+from urllib.parse import urlparse, parse_qs, urljoin, parse_qsl, urlencode
 from bs4 import BeautifulSoup
 
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -1129,6 +1129,11 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         return _SkippedIrrelevant()
 
     final_title = ai.get("title") or title
+    if source_label.startswith("Google Alerts:"):
+        duplicate_url = alert_archive_duplicate(link, final_title)
+        if duplicate_url:
+            print(f"[{source_label}] Дубль в архіві: {duplicate_url}")
+            return _SkippedDuplicate()
     deadline = ai.get("deadline") or deadline_hint
 
     # Запобіжник для шумних джерел (strict_fallback=True: Google Alerts,
@@ -1281,6 +1286,29 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         if used + len(text) + 2 <= budget:
             kept.append(text)
             used += len(text) + 2
+
+    if source_label.startswith("Google Alerts:"):
+        header = f"{final_emoji} <b>{final_title.upper()}</b>"
+        kept = []
+        if ai.get("intro"):
+            kept.append(ai["intro"])
+        kept.extend([
+            "📅 <b>ДЕДЛАЙН</b>\n" + (deadline or "Не зазначено"),
+            "🌍 <b>ГЕОГРАФІЯ</b>\n" + (ai.get("geography") or "Не зазначено"),
+            "💰 <b>ФІНАНСУВАННЯ / ПІДТРИМКА</b>\n" + (
+                _bullets((ai.get("funding") or []) + (ai.get("supported") or [])) or "Не зазначено"),
+            "👥 <b>ХТО МОЖЕ ПОДАВАТИСЯ</b>\n" + (
+                _bullets(ai.get("audience") or []) or "Див. офіційні умови"),
+            "📝 <b>ЩО ПОДАВАТИ / ЯК ПОДАТИ</b>\n" + (
+                _bullets(requirements) or "Див. офіційні умови за посиланням"),
+        ])
+        if ai.get("application_fee"):
+            kept[3 if ai.get("intro") else 2] += "\nВнесок: " + ai["application_fee"]
+        links_block = "🔗 <b>ПОСИЛАННЯ</b>\n" + links_block
+        if sum(map(len, [header, *kept, links_block, hashtags])) + 24 > 4000:
+            kept = [section if len(section) <= 450 else section[:447] + "…" for section in kept]
+        if sum(map(len, [header, *kept, links_block, hashtags])) + 24 > 4000:
+            return _RetryOpportunity()
 
     parts = [header] + kept + [links_block]
     if hashtags:
@@ -2602,6 +2630,63 @@ def process_fundsforngos_listing(digest_url: str, posted_links: set,
 
 
 ALERT_QUEUE_FILE = "google_alert_queue.json"
+ALERT_ARCHIVE_ROOT = "https://raw.githubusercontent.com/Prool-bot/ngo-grants-facebook/main/archive/telegram/"
+_alert_archive = None
+
+
+def alert_archive_key(url):
+    parsed = urlparse(url)
+    host = parsed.netloc.lower().removeprefix("www.")
+    query = sorted((key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+                   if not key.lower().startswith("utm_") and key.lower() not in {"fbclid", "gclid"})
+    return host, parsed.path.rstrip("/"), urlencode(query)
+
+
+def load_alert_archive():
+    from datetime import date, timedelta
+
+    global _alert_archive
+    if _alert_archive is not None:
+        return _alert_archive
+
+    def read(relative_path):
+        response = requests.get(ALERT_ARCHIVE_ROOT + relative_path, timeout=15)
+        response.raise_for_status()
+        return response.json()
+
+    cutoff = date.today() - timedelta(days=365)
+    urls = {}
+    titles = {}
+    index = read("index.json")
+    if index["channel"] != "ngo_grants" or not index["months"]:
+        raise ValueError("Invalid channel archive index")
+    for month in index["months"]:
+        if month["month"] < cutoff.isoformat()[:7]:
+            continue
+        for post in read(month["json"]):
+            if date.fromisoformat(post["date"][:10]) < cutoff:
+                continue
+            permalink = post["post_url"]
+            for url in post.get("urls", []) + post.get("canonical_urls", []):
+                key = alert_archive_key(url)
+                if key[1] or key[2]:
+                    urls[key] = permalink
+            headline = (post.get("text") or "").strip().partition("\n")[0]
+            key = alert_archive_title(headline)
+            if len(key) >= 30:
+                titles[key] = permalink
+    _alert_archive = urls, titles
+    return _alert_archive
+
+
+def alert_archive_title(title):
+    return " ".join(re.findall(r"\w+", title.casefold()))
+
+
+def alert_archive_duplicate(link, title=""):
+    urls, titles = load_alert_archive()
+    return urls.get(alert_archive_key(link)) or titles.get(alert_archive_title(title))
+
 
 
 def load_alert_queue():
@@ -2696,6 +2781,10 @@ def process_alert_candidate(url, item, queue, posted_links, posted_titles, poste
 
     if not page:
         return "source_unavailable"
+    duplicate_url = alert_archive_duplicate(official_url)
+    if duplicate_url:
+        print(f"[Google Alerts] Дубль в архіві: {duplicate_url}")
+        return "duplicate"
     description = alert_official_text(page)
     if len(description) < 80:
         return "source_incomplete"
