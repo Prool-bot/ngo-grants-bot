@@ -2,19 +2,25 @@
   "https://www.facebook.com/100067245691943/posts/we-are-delighted-to-share-that-our-doctoral-student-john-munday-ms-ccc-slp-is-on/1312103557707822/": {
     "title": "John Munday receives 2027 Vicki Lord Larson research grant for communication sciences",
     "snippet": "With this research grant , Claudia receives support to conduct research that will advance the discipline of communication sciences and disorders.",
-    "attempts": 3,
+    "attempts": 4,
     "last_status": "retry"
   },
   "https://www.racgp.org.au/advocacy/member-consultations/open-consultations/tga-interim-scheduling-decision-isotretinoin": {
     "title": "Therapeutic Goods Administration (TGA) interim scheduling decision (isotretinoin) - RACGP",
     "snippet": "Research Grant Partnerships · Education Research Grant Program · RACGP research strategy · Practice-Based Research Networks (PBRNs) · University ...",
-    "attempts": 2,
+    "attempts": 3,
     "last_status": "retry"
   },
   "https://neoskosmos.com/en/2026/11/11/features/major-australian-research-grant-backs-study-recognising-children-as-victims-in-their-own-right/": {
     "title": "Major Australian research grant backs study recognising children as victims in their own right",
     "snippet": "Major Australian research grant backs study recognising children as victims in their own right. For more than 15 years, award-winning academic ...",
-    "attempts": 2,
+    "attempts": 3,
     "last_status": "retry"
+  },
+  "https://atomgrants.com/grant/foundation-for-womens-cancer-move4her-research-grant/similar-grants": {
+    "title": "Foundation for Women's Cancer (FWC) Move4Her Research Grant 2026 - Atom Grants",
+    "snippet": "Foundation for Women's Cancer (FWC) Move4Her Research Grant supports early-career researchers studying any gynecologic cancer, using Move4Her ...",
+    "attempts": 1,
+    "last_status": "source_incomplete"
   }
 }
