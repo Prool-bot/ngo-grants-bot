@@ -2747,14 +2747,48 @@ def alert_official_text(page):
     return " ".join(body.stripped_strings)[:6500]
 
 
+ALERT_EDITORIAL_LINK = re.compile(
+    r"\b(?:official (?:website|source|announcement)|original (?:source|announcement)|"
+    r"source of (?:this|the) (?:article|announcement))\b|першоджерело|офіційне оголошення",
+    re.IGNORECASE,
+)
+ALERT_EDITORIAL_TEXT = re.compile(
+    r"\b(?:we (?:curate|share|collect|list) (?:funding |grant )?opportunities|"
+    r"(?:grant|funding|scholarship) aggregator)\b|агрегатор (?:грантів|можливостей)",
+    re.IGNORECASE,
+)
+
+
+def alert_page_route(url, page):
+    host = urlparse(url).netloc.lower()
+    if is_social_media_url(url) or any(domain in host for domain in KNOWN_AGGREGATOR_DOMAINS):
+        return "intermediary", None
+    if page is None:
+        return "unavailable", None
+    body = page.find("article") or page.find("main") or page.body or page
+    sources = set()
+    for anchor in body.find_all("a", href=True):
+        if not ALERT_EDITORIAL_LINK.search(anchor.get_text(" ", strip=True)):
+            continue
+        candidate = urljoin(url, anchor["href"])
+        parsed = urlparse(candidate)
+        if parsed.scheme in {"http", "https"} and parsed.netloc and parsed.netloc.lower() != host:
+            sources.add(candidate)
+    if len(sources) > 1:
+        return "ambiguous", None
+    if sources:
+        return "intermediary", next(iter(sources))
+    if ALERT_EDITORIAL_TEXT.search(alert_official_text(page)):
+        return "intermediary", None
+    return "direct", None
+
+
 def process_alert_candidate(url, item, queue, posted_links, posted_titles, posted_keywords):
     title = item["title"]
     snippet = item["snippet"]
     if is_excluded(title) and (not snippet or is_excluded(snippet)):
         return "excluded"
 
-    host = urlparse(url).netloc.lower()
-    aggregate = any(domain in host for domain in KNOWN_AGGREGATOR_DOMAINS)
     social = is_social_media_url(url)
     page = fetch_html(url)
     if page and not social:
@@ -2767,20 +2801,31 @@ def process_alert_candidate(url, item, queue, posted_links, posted_titles, poste
             return "expanded"
 
     official_url = url
-    if aggregate or social:
-        official_url, _ = (find_original_source_link(page, KNOWN_AGGREGATOR_DOMAINS, priority_only=True)
-                           if page else (None, None))
-        if not official_url:
-            official_url, _, _ = find_source_via_search(title)
-        if not official_url or any(domain in urlparse(official_url).netloc.lower()
-                                   for domain in KNOWN_AGGREGATOR_DOMAINS):
+    visited = {url}
+    for _ in range(3):
+        route, linked_source = alert_page_route(official_url, page)
+        if route == "direct":
+            break
+        if route == "unavailable":
+            return "source_unavailable"
+        if route == "ambiguous":
+            return "source_ambiguous"
+        if not linked_source and page:
+            linked_source, _ = find_original_source_link(
+                page, KNOWN_AGGREGATOR_DOMAINS, priority_only=True)
+        if not linked_source:
+            linked_source, _, _ = find_source_via_search(title)
+        if not linked_source or linked_source in visited:
             return "source_unresolved"
-        if official_url in posted_links:
+        if linked_source in posted_links:
             return "duplicate"
+        visited.add(linked_source)
+        official_url = linked_source
         page = fetch_html(official_url)
+    else:
+        if alert_page_route(official_url, page)[0] != "direct":
+            return "source_unresolved"
 
-    if not page:
-        return "source_unavailable"
     duplicate_url = alert_archive_duplicate(official_url)
     if duplicate_url:
         print(f"[Google Alerts] Дубль в архіві: {duplicate_url}")
