@@ -3,6 +3,7 @@ import re
 import json
 import time
 import hashlib
+from collections import deque
 import feedparser
 import requests
 from urllib.parse import urlparse, parse_qs, urljoin, parse_qsl, urlencode
@@ -2873,26 +2874,38 @@ def run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_s
     if ALERT_REPLAY:
         posted_links, posted_titles, posted_keywords = set(), set(), []
         load_alert_archive()
+    batches = []
     for index, feed_url in enumerate(GOOGLE_ALERT_FEEDS, 1):
-        collect_google_alert(feed_url, f"Google Alerts #{index}", posted_links, queue)
+        batch = {}
+        collect_google_alert(feed_url, f"Google Alerts #{index}", posted_links, batch)
+        batches.append(deque(batch.items()))
+    while any(batches):
+        for batch in batches:
+            if batch:
+                url, item = batch.popleft()
+                queue.setdefault(url, item)
     if not queue:
         return
     save_alert_queue(queue)
     stats = {}
     published = 0
-    # Take a snapshot so children are persisted even when this run reaches its limit.
-    for index, url in enumerate(list(queue)):
-        if ALERT_DRY_RUN and index >= 30:
+    pending = deque(queue)
+    attempts = 0
+    while pending and published < GOOGLE_ALERTS_MAX_PER_RUN:
+        if ALERT_DRY_RUN and attempts >= 30:
             break
-        if published >= GOOGLE_ALERTS_MAX_PER_RUN:
-            break
+        url = pending.popleft()
+        attempts += 1
         item = queue[url]
+        existing = set(queue) if ALERT_DRY_RUN else None
         try:
             status = ("duplicate" if url in posted_links else
                       process_alert_candidate(url, item, queue, posted_links, posted_titles, posted_keywords))
         except Exception as error:
             print(f"[Google Alerts] {type(error).__name__}: {item['title'][:100]}")
             status = "retry"
+        if status == "expanded" and existing is not None:
+            pending.extend(child for child in queue if child not in existing)
         stats[status] = stats.get(status, 0) + 1
         if status in {"published", "duplicate", "expanded", "excluded", "filtered", "preview"}:
             if not ALERT_DRY_RUN and url not in posted_links:
