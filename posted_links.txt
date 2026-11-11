@@ -54923,3 +54923,6 @@ tg_GrantUP_17475
 tg_egrants_ua_384
 https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-z-orhanizatsiji-ta-provedennya-profesijnyh-navchalnyh-kursiv-za-spetsialnistyu-vodij-katehoriji-ce#0
 https://www.prostir.ua/?grants=tender-na-zakupivlyu-hazovyh-heneratornyh-ustanovok-dlya-objektiv-sotsialnoji-sfery#0
+tg_grantovyphishky_9411
+tg_egrants_ua_385
+https://www.prostir.ua/?grants=tender-na-zakupivlyu-posluh-z-kompleksnoho-orhanizatsijnoho-ta-tehnichnoho-zabezpechennya-zahodiv-zokrema-nadannya-konferents-zalu-kejterynhovoho-obsluhovuvannya-ta-tehnichnoho-suprovodu-m-kyjiv#0
