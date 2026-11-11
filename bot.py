@@ -5,7 +5,7 @@ import time
 import hashlib
 import feedparser
 import requests
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, urljoin
 from bs4 import BeautifulSoup
 
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -954,6 +954,11 @@ def _dedupe_paragraphs(msg: str) -> str:
             kept.append(para)
     return "\n\n".join(kept)
 
+class _RetryOpportunity:
+    status_code = 503
+    text = "retry: temporary processing failure"
+
+
 class _SkippedDuplicate:
     """Легкий сурогат requests.Response для випадку, коли пост відсіявся
     на stage 2 (дублікат після AI-нормалізації). status_code=200 навмисно —
@@ -1103,11 +1108,15 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         print(f"[{source_label}] Skipped (посилання на ШІ-чат, не на першоджерело): {title[:60]}")
         return _SkippedIrrelevant()
 
-    if strict_fallback and is_likely_country_restricted(f"{title} {description}"):
+    if strict_fallback and not source_label.startswith("Google Alerts:") and is_likely_country_restricted(f"{title} {description}"):
         print(f"[{source_label}] Skipped (схоже, обмежено конкретною країною — без виклику AI): {title[:60]}")
         return _SkippedIrrelevant()
 
     ai = reformat_post(f"{title}\n\n{description}", source_label, strict_fallback=strict_fallback)
+
+    if ai.get("_ai_failed") and strict_fallback:
+        print(f"[{source_label}] Повторити: ШІ не відповів — {title[:60]}")
+        return _RetryOpportunity()
 
     if not ai.get("is_relevant", True):
         reason = ("AI не відповів, ймовірно вичерпано денну квоту"
@@ -1233,7 +1242,7 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         global _empty_content_items
         _empty_content_items.append((title, link))
         print(f"[{source_label}] Skipped (порожній контент, надіслано на email): {title[:60]}")
-        return _SkippedIrrelevant()
+        return _RetryOpportunity() if source_label.startswith("Google Alerts:") else _SkippedIrrelevant()
 
     main_link_label = ai.get("source_link_label") or source_label
     links_block = f"🔗 <a href=\"{link}\">{main_link_label}</a>"
@@ -2592,198 +2601,160 @@ def process_fundsforngos_listing(digest_url: str, posted_links: set,
     print(f"[fundsforngos] Розібрано нових пунктів зі збірки: {items_found}")
 
 
-def run_google_alert(feed_url: str, alert_label: str, posted_links: set,
-                      posted_titles: set, posted_keywords: list, counter: dict,
-                      unresolved_social: list) -> None:
-    feed = feedparser.parse(feed_url)
-    if not feed.entries:
-        print(f"[{alert_label}] Немає записів")
+ALERT_QUEUE_FILE = "google_alert_queue.json"
+
+
+def load_alert_queue():
+    try:
+        with open(ALERT_QUEUE_FILE, encoding="utf-8") as state:
+            return json.load(state)
+    except FileNotFoundError:
+        return {}
+
+
+def save_alert_queue(queue):
+    temporary = ALERT_QUEUE_FILE + ".tmp"
+    with open(temporary, "w", encoding="utf-8") as state:
+        json.dump(queue, state, ensure_ascii=False, indent=2)
+    os.replace(temporary, ALERT_QUEUE_FILE)
+
+
+def collect_google_alert(feed_url, label, posted_links, queue):
+    try:
+        response = requests.get(feed_url, timeout=20)
+        if not response.ok:
+            print(f"[{label}] HTTP {response.status_code}")
+            return
+        feed = feedparser.parse(response.content)
+    except requests.RequestException as error:
+        print(f"[{label}] Помилка завантаження: {type(error).__name__}")
         return
-    print(f"[{alert_label}] Знайдено {len(feed.entries)} записів")
-
-    already_posted = 0
-    filtered_out = 0
-    new_processed = 0
-
+    if feed.bozo:
+        print(f"[{label}] Помилка RSS: {type(feed.bozo_exception).__name__}")
+    added = 0
     for entry in reversed(feed.entries):
-        if counter["count"] >= GOOGLE_ALERTS_MAX_PER_RUN:
-            print(f"[{alert_label}] Досягнуто ліміт {GOOGLE_ALERTS_MAX_PER_RUN} публікацій за прогін — решта зачекає наступного запуску")
+        url = extract_real_url(getattr(entry, "link", ""))
+        if not url or url in posted_links or url in queue:
+            continue
+        title = clean_html_description(getattr(entry, "title", "") or "")
+        snippet = clean_html_description(getattr(entry, "summary", "") or "")
+        queue[url] = {"title": title, "snippet": snippet, "attempts": 0}
+        added += 1
+    print(f"[{label}] Записів RSS: {len(feed.entries)}, нових у черзі: {added}")
+
+
+def alert_listing_items(page, url):
+    if "fundsforngos.org/listing/" not in url:
+        return extract_listing_items(page)
+    items = []
+    for paragraph in page.find_all("p"):
+        for anchor in paragraph.find_all("a", href=True):
+            if anchor.get_text(strip=True).lower() in ("more", "read more", "[more]", "more…", "more..."):
+                lines = paragraph.get_text("\n", strip=True).splitlines()
+                if lines:
+                    items.append((lines[0], paragraph.get_text(" ", strip=True), anchor["href"]))
+                break
+    return items
+
+
+def alert_official_text(page):
+    body = page.find("article") or page.find("main") or page.body or page
+    return " ".join(body.stripped_strings)[:6500]
+
+
+def process_alert_candidate(url, item, queue, posted_links, posted_titles, posted_keywords):
+    title = item["title"]
+    snippet = item["snippet"]
+    if is_excluded(title) and (not snippet or is_excluded(snippet)):
+        return "excluded"
+
+    host = urlparse(url).netloc.lower()
+    aggregate = any(domain in host for domain in KNOWN_AGGREGATOR_DOMAINS)
+    social = is_social_media_url(url)
+    page = fetch_html(url)
+    if page and not social:
+        items = alert_listing_items(page, url)
+        if items:
+            for child_title, child_snippet, href in items:
+                child_url = urljoin(url, href)
+                if child_url != url and child_url not in posted_links:
+                    queue.setdefault(child_url, {"title": child_title, "snippet": child_snippet, "attempts": 0})
+            return "expanded"
+
+    official_url = url
+    if aggregate or social:
+        official_url, _ = (find_original_source_link(page, KNOWN_AGGREGATOR_DOMAINS, priority_only=True)
+                           if page else (None, None))
+        if not official_url:
+            official_url, _, _ = find_source_via_search(title)
+        if not official_url or any(domain in urlparse(official_url).netloc.lower()
+                                   for domain in KNOWN_AGGREGATOR_DOMAINS):
+            return "source_unresolved"
+        if official_url in posted_links:
+            return "duplicate"
+        page = fetch_html(official_url)
+
+    if not page:
+        return "source_unavailable"
+    description = alert_official_text(page)
+    if len(description) < 80:
+        return "source_incomplete"
+
+    label = "Google Alerts: " + urlparse(official_url).netloc.lower()
+    result = build_and_send("🌍", title, official_url, description, label,
+                            posted_titles, posted_keywords, posted_links, strict_fallback=True)
+    if isinstance(result, _SkippedDuplicate):
+        return "duplicate"
+    if isinstance(result, _SkippedIrrelevant):
+        return "filtered"
+    if result.status_code != 200:
+        return "retry"
+    payload = result.json()
+    if not payload.get("ok") or not payload.get("result", {}).get("message_id"):
+        return "retry"
+    if official_url not in posted_links:
+        save_posted_link(official_url)
+        posted_links.add(official_url)
+    return "published"
+
+
+def run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_social):
+    queue = load_alert_queue()
+    for index, feed_url in enumerate(GOOGLE_ALERT_FEEDS, 1):
+        collect_google_alert(feed_url, f"Google Alerts #{index}", posted_links, queue)
+    if not queue:
+        return
+    save_alert_queue(queue)
+    stats = {}
+    published = 0
+    # Take a snapshot so children are persisted even when this run reaches its limit.
+    for url in list(queue):
+        if published >= GOOGLE_ALERTS_MAX_PER_RUN:
             break
-
-        raw_title = clean_html_description(getattr(entry, "title", "") or "")
-        google_link = getattr(entry, "link", "")
-        real_url = extract_real_url(google_link)
-        if not real_url:
-            continue
-
-        if real_url in posted_links:
-            already_posted += 1
-            continue
-
-        if is_excluded(raw_title):
-            filtered_out += 1
-            save_posted_link(real_url)
-            posted_links.add(real_url)
-            continue
-
-        new_processed += 1
-        if "fundsforngos.org/listing/" in real_url:
-            process_fundsforngos_listing(real_url, posted_links, posted_titles, posted_keywords, counter)
-            save_posted_link(real_url)
-            posted_links.add(real_url)
-            continue
-
-        original_alert_url = real_url
-        description = None
-        if is_social_media_url(real_url):
-            netloc_check = urlparse(real_url).netloc.lower()
-            if "x.com" in netloc_check or "twitter.com" in netloc_check:
-                tweet_text, tweet_link = fetch_tweet_content(real_url)
-                if not tweet_text:
-                    print(f"[{alert_label}] Skipped (твіт не вдалось прочитати): {raw_title[:60]}")
-                    save_posted_link(real_url)
-                    posted_links.add(real_url)
-                    continue
-                if not tweet_link:
-                    # Раніше тут все одно публікувалось із самим твітом
-                    # як джерелом ("x.com — джерело" чи AI-згенероване
-                    # "Твіт про грант") — непослідовно з тим, як
-                    # обробляються Facebook/Instagram нижче (там
-                    # відсутність посилання всередині посту = пропуск +
-                    # email). Твіт без вбудованого посилання так само не
-                    # першоджерело, а лише згадка — вирівнюємо поведінку.
-                    print(f"[{alert_label}] Skipped (твіт без посилання на першоджерело, надіслано на email): {raw_title[:60]}")
-                    save_posted_link(real_url)
-                    posted_links.add(real_url)
-                    unresolved_social.append((raw_title, real_url))
-                    continue
-                description = tweet_text
-                real_url = tweet_link
-                tweet_page = fetch_html(real_url)
-                fuller = collect_paragraphs(tweet_page, min_len=100) if tweet_page else ""
-                if fuller:
-                    description = fuller
-                domain = urlparse(real_url).netloc.lower().replace("www.", "")
-                netloc_source = f"{domain} — джерело" if domain else "x.com — джерело"
-            else:
-                # Facebook/Instagram — простий перехід. Instagram майже
-                # завжди тут впаде (блокує датацентрові IP на першому ж
-                # запиті) — це очікувано, обробляється як пропуск нижче.
-                social_page = fetch_html(real_url)
-                found_url, found_label = (find_original_source_link(social_page)
-                                           if social_page else (None, None))
-                if not found_url:
-                    print(f"[{alert_label}] Skipped (лише соцмережа, першоджерело не знайдено, надіслано на email): {raw_title[:60]}")
-                    save_posted_link(real_url)
-                    posted_links.add(real_url)
-                    unresolved_social.append((raw_title, real_url))
-                    continue
-                real_url, netloc_source = found_url, found_label
-        else:
-            # Універсальний пошук першоджерела для БУДЬ-ЯКОГО сайту, не
-            # лише зі списку KNOWN_AGGREGATOR_DOMAINS. Раніше нові
-            # агрегатори (типу opportunitiesforyouth.org) доводилось
-            # виявляти вручну після того, як хибне посилання вже
-            # опублікувалось, і щоразу дописувати домен у список.
-            # Свідомий компроміс: іноді це може підмінити ПРАВИЛЬНЕ
-            # посилання на справжньому першоджерелі випадковим вихідним
-            # посиланням із тексту сторінки (банер партнера, related-
-            # стаття тощо) — знайти й опублікувати першоджерело для
-            # невідомого агрегатора важливіше за цей рідший ризик.
-            agg_page = fetch_html(real_url)
-
-            # СПОЧАТКУ перевіряємо, чи сторінка сама є ДАЙДЖЕСТОМ кількох
-            # РІЗНИХ можливостей (як щомісячні збірки Impact Funding тощо),
-            # а не однією конкретною. Якщо так — розбиваємо на окремі
-            # пункти, для КОЖНОГО окремо шукаємо першоджерело ще на крок
-            # глибше (той самий ланцюжок дайджест → агрегатор → донор, що
-            # і для fundsforngos.org/listing/), і публікуємо кожен пункт
-            # окремим постом — замість одного поста з назвою лише ПЕРШОЇ
-            # можливості з усієї збірки, а текстом усієї сторінки.
-            listing_items = extract_listing_items(agg_page, KNOWN_AGGREGATOR_DOMAINS) if agg_page else []
-            if listing_items:
-                print(f"[{alert_label}] Сторінка-дайджест: {len(listing_items)} окремих пунктів — {real_url}")
-                for item_title, item_snippet, item_href in listing_items:
-                    if counter["count"] >= GOOGLE_ALERTS_MAX_PER_RUN:
-                        break
-                    if item_href in posted_links or is_excluded(item_title) or is_excluded(item_snippet):
-                        continue
-                    item_page = fetch_html(item_href)
-                    item_source_url, item_source_label = (
-                        find_original_source_link(item_page, extra_skip_domains=KNOWN_AGGREGATOR_DOMAINS)
-                        if item_page else (None, None))
-                    item_description = (collect_paragraphs(item_page, min_len=80) if item_page else "") or item_snippet
-                    if not item_source_url:
-                        netloc = urlparse(item_href).netloc.lower().replace("www.", "")
-                        item_source_url = item_href
-                        item_source_label = f"{netloc} — джерело" if netloc else alert_label
-                    try:
-                        item_resp = build_and_send("🌍", item_title, item_source_url, item_description,
-                                                    item_source_label, posted_titles, posted_keywords,
-                                                    posted_links, strict_fallback=True)
-                        if item_resp.status_code == 200:
-                            save_posted_link(item_href)
-                            posted_links.add(item_href)
-                            if not isinstance(item_resp, _SKIP_SENTINELS):
-                                counter["count"] += 1
-                    except Exception as e:
-                        print(f"[{alert_label}] ERROR (пункт дайджесту) {item_href}: {e}")
-                    time.sleep(2)
-                save_posted_link(real_url)
-                posted_links.add(real_url)
-                continue
-
-            # Сценарій 1 має пріоритет: якщо сторінка НЕ з відомого
-            # агрегатора, вона цілком може бути першоджерелом сама. Тоді
-            # шукаємо глибше лише за явними "Apply/Official/Visit"-
-            # посиланнями (priority_only), без fallback на "перше
-            # зовнішнє посилання" з футера. Не знайшли — лишається
-            # сама сторінка з алерта. Для відомих агрегаторів — повний
-            # пошук, як раніше.
-            is_known_aggregator = any(d in urlparse(real_url).netloc.lower() for d in KNOWN_AGGREGATOR_DOMAINS)
-            found_url, found_label = (find_original_source_link(
-                                          agg_page, extra_skip_domains=KNOWN_AGGREGATOR_DOMAINS,
-                                          priority_only=not is_known_aggregator)
-                                       if agg_page else (None, None))
-            if found_url:
-                real_url, netloc_source = found_url, found_label
-                fuller = collect_paragraphs(agg_page, min_len=100) if agg_page else ""
-                if fuller:
-                    description = fuller
-            else:
-                netloc_source = None
-
-        if description is None:
-            page = fetch_html(real_url)
-            description = collect_paragraphs(page, min_len=100) if page else ""
-        if not description:
-            description = clean_html_description(getattr(entry, "summary", "") or "") or raw_title
-
-        if netloc_source:
-            source_label = netloc_source
-        else:
-            netloc = urlparse(real_url).netloc.lower().replace("www.", "")
-            source_label = f"{netloc} — джерело" if netloc else alert_label
-
+        item = queue[url]
         try:
-            resp = build_and_send("🌍", raw_title, real_url, description, source_label,
-                                   posted_titles, posted_keywords, posted_links, strict_fallback=True)
-            if resp.status_code == 200:
-                # Зберігаємо і знайдене першоджерело, і ОРИГІНАЛЬНУ адресу
-                # з алерта — інакше при підміні посилання запис знову
-                # обробляється в кожному прогоні.
-                for u in (real_url, original_alert_url):
-                    if u not in posted_links:
-                        save_posted_link(u)
-                        posted_links.add(u)
-                if not isinstance(resp, _SKIP_SENTINELS):
-                    counter["count"] += 1
-        except Exception as e:
-            print(f"[{alert_label}] ERROR {real_url}: {e}")
-        time.sleep(2)
-
-    print(f"[{alert_label}] Підсумок: {new_processed} нових оброблено, "
-          f"{already_posted} вже було раніше, {filtered_out} відфільтровано")
+            status = ("duplicate" if url in posted_links else
+                      process_alert_candidate(url, item, queue, posted_links, posted_titles, posted_keywords))
+        except Exception as error:
+            print(f"[Google Alerts] {type(error).__name__}: {item['title'][:100]}")
+            status = "retry"
+        stats[status] = stats.get(status, 0) + 1
+        if status in {"published", "duplicate", "expanded", "excluded", "filtered"}:
+            if url not in posted_links:
+                save_posted_link(url)
+                posted_links.add(url)
+            del queue[url]
+        else:
+            item["attempts"] += 1
+            item["last_status"] = status
+            # Retried entries move behind untouched candidates.
+            queue[url] = queue.pop(url)
+            if item["attempts"] == 1 and status.startswith("source_"):
+                target = unresolved_social if is_social_media_url(url) else _unresolved_source_items
+                target.append((item["title"], url))
+        published += status == "published"
+        save_alert_queue(queue)
+    print(f"[Google Alerts] Результати: {stats}; у черзі: {len(queue)}")
 
 
 # ---------------------------------------------------------------------------
@@ -3478,11 +3449,8 @@ def main():
     for username, channel_name, strict, resolve_deeper in TG_CHANNELS:
         run_tg_channel(username, channel_name, posted_links, posted_titles, posted_keywords,
                         strict_fallback=strict, resolve_deeper=resolve_deeper)
-    google_alerts_counter = {"count": 0}
     unresolved_social = []
-    for feed_url in GOOGLE_ALERT_FEEDS:
-        run_google_alert(feed_url, "Google Alerts — джерело", posted_links, posted_titles,
-                          posted_keywords, google_alerts_counter, unresolved_social)
+    run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_social)
 
     run_opportunities_radar(posted_links, posted_titles, posted_keywords)
     run_fundsforngos_feed(posted_links, posted_titles, posted_keywords)
