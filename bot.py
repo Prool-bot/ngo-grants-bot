@@ -161,7 +161,7 @@ GRANTHUB_LIST_URL = "https://granthub.org.ua/granty"
 # Коли Google Alert приводить на будь-який із цих доменів, бот заходить
 # на сторінку й шукає СПРАВЖНЄ джерело всередині, а не публікує сам блог
 # як джерело. Список поповнюється в міру виявлення нових таких сайтів.
-KNOWN_AGGREGATOR_DOMAINS = ("fundsforngos", "opportunitiesradar", "globalsouthopportunities", "vacancyedu", "opportunitiesforyouth",
+KNOWN_AGGREGATOR_DOMAINS = ("grant-radar.app", "grantradar.com.ua", "scientifyresearch.org", "biotecnika.com", "callfor.org", "fundsforngos", "opportunitiesradar", "globalsouthopportunities", "vacancyedu", "opportunitiesforyouth",
                             "callfor.org", "opencallforartists", "callforentry", "artrabbit", "artconnect.com")
 
 # ---------------------------------------------------------------------------
