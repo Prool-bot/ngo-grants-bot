@@ -161,7 +161,8 @@ GRANTHUB_LIST_URL = "https://granthub.org.ua/granty"
 # Коли Google Alert приводить на будь-який із цих доменів, бот заходить
 # на сторінку й шукає СПРАВЖНЄ джерело всередині, а не публікує сам блог
 # як джерело. Список поповнюється в міру виявлення нових таких сайтів.
-KNOWN_AGGREGATOR_DOMAINS = ("fundsforngos", "opportunitiesradar", "globalsouthopportunities", "vacancyedu", "opportunitiesforyouth")
+KNOWN_AGGREGATOR_DOMAINS = ("fundsforngos", "opportunitiesradar", "globalsouthopportunities", "vacancyedu", "opportunitiesforyouth",
+                            "callfor.org", "opencallforartists", "callforentry", "artrabbit", "artconnect.com")
 
 # ---------------------------------------------------------------------------
 # ФІЛЬТРИ
@@ -751,6 +752,15 @@ AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гра�
   зрештою МОЖЕ отримати реальний приз/фінансування, а невеликий внесок
   лише за розгляд заявки; тут же реальної фінансової віддачі читачу
   взагалі немає — сама участь у курсі і є "продуктом", за який платять).
+- МОВА: УСІ текстові поля (intro, notes, пункти списків: audience, funding,
+  directions, supported_activities, application_requirements тощо) пиши
+  УКРАЇНСЬКОЮ, навіть якщо оригінал англійською. Не лишай речень і пунктів
+  англійською — перекладай (напр. "artists" → "художники", "proposal" →
+  "проєктна пропозиція", "free exhibition space" → "безкоштовний
+  виставковий простір"). Англійською лишаються лише власні назви
+  (організації, програми, назви премій) і усталені терміни.
+- Хештеги: #наука став лише для наукових/дослідницьких можливостей; для
+  мистецтва, виставок, open call для художників — #культура (без #наука).
 - Стиль: стисло, по суті, українською, без markdown-розмітки (без **, ##,```)"""
 
 AI_RESPONSE_SCHEMA = {
@@ -1160,6 +1170,13 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
     sections = []
     ai["intro"] = _strip_channel_promo(ai.get("intro"))
     ai["notes"] = _strip_channel_promo(ai.get("notes"))
+    # Вільний текст без жодної кириличної літери — AI не переклав (і
+    # промпт-правило не спрацювало). Краще без такої примітки, ніж з
+    # англійським абзацом посеред українського поста.
+    for _k in ("intro", "notes"):
+        _v = ai.get(_k)
+        if isinstance(_v, str) and len(_v) >= 40 and not re.search(r"[А-Яа-яІіЇїЄєҐґ]", _v):
+            ai[_k] = None
     if ai.get("intro"):
         sections.append((1, ai["intro"]))
     if meta_text:
