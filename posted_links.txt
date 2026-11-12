@@ -55090,3 +55090,4 @@ https://www.prostir.ua/?grants=tender-na-zakupivlyu-indyvidualnyh-aptechok-persh
 https://www.prostir.ua/?grants=konkurs-na-nadannya-posluh-iz-zakupivelnoho-ta-yurydychnoho-suprovodu-projektu#0
 tg_grantovyphishky_9417
 tg_GrantUP_17485
+tg_GrantUP_17484
