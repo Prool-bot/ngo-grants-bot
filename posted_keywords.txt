@@ -573,3 +573,4 @@ exhibition|free|house|kunst|projects|space|three|yerevan
 civic|signals|безкоштовна|дезінформації|дослідження
 замінованих|землях|розмінованих|фермерів
 ability|foundation|sport|адаптивного|спортсменів|спорту|тренерів
+ветеранів|дедлайн|листопада|львові
