@@ -2803,6 +2803,12 @@ def alert_page_route(url, page):
 
 
 VERIFIED_FUNDSFORNGOS_SOURCES = {
+    "fao-2027-innovation-award-recognizing-ground-breaking-innovations-in": "https://www.fao.org/fao-awards/innovation/about/en",
+    "fao-achievement-award-2027-recognizing-excellence-in-food-and-agriculture": "https://www.fao.org/fao-awards/achievement/about/en",
+    "fao-2027-champion-award-recognizing-outstanding-contributions-to": "https://www.fao.org/fao-awards/champion/about/en",
+    "2027-courage-in-journalism-awards-nomination": "https://www.iwmf.org/awards/courage-in-journalism-awards/",
+    "rch-2027-joint-transnational-call-for-climate-resilient-cultural-heritage": "https://www.aka.fi/en/research-funding/apply-for-funding/calls-for-applications/international-calls/european-partnership-for-resilient-cultural-heritage-joint-transnational-call-foundations-for-climate-resilient-cultural-heritage/",
+    "nominate-a-candidate-for-the-rafto-prize-for-human-rights": "https://www.rafto.no/en/rafto-prize/nominasjoner",
     "open-call-2026-nordic-environment-and-economy-programme-2025-2027": "https://www.norden.org/is/node/99500",
     "joana-biarnes-fellowship-for-photojournalists-in-spain": "https://www.fundacionpsv.org/beca-joana-biarnes/",
     "2027-atw-media-awards-celebrating-excellence-in-african-travel-media": "https://atwconnect.com/the-2027-atw-media-awards/",
@@ -2846,8 +2852,17 @@ def process_alert_candidate(url, item, queue, posted_links, posted_titles, poste
             linked_source, _ = find_original_source_link(
                 BeautifulSoup(item["rss_html"], "html.parser"), KNOWN_AGGREGATOR_DOMAINS,
                 priority_only=True)
+        if not linked_source and page and (urlparse(official_url).hostname or "").endswith(".fundsforngos.org"):
+            article = page.select_one(".entry-content, .post-content, article")
+            if article:
+                linked_source, _ = find_original_source_link(article, KNOWN_AGGREGATOR_DOMAINS)
         if not linked_source:
-            linked_source, _, _ = find_source_via_search(title)
+            search_title = title
+            if host == "fundsforngos.org" or host.endswith(".fundsforngos.org"):
+                search_title = urlparse(url).path.rstrip("/").split("/")[-1].replace("-", " ")
+            linked_source, _, _ = find_source_via_search(search_title)
+            if not linked_source and _tavily_limited:
+                return "search_quota"
         if not linked_source or linked_source in visited:
             return "source_unresolved"
         if linked_source in posted_links:
@@ -2904,7 +2919,7 @@ def run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_s
                 url, item = batch.popleft()
                 queue.setdefault(url, item)
     if not ALERT_DRY_RUN:
-        for slug, source in VERIFIED_FUNDSFORNGOS_SOURCES.items():
+        for slug, source in list(VERIFIED_FUNDSFORNGOS_SOURCES.items())[-3:]:
             recovery_key = "recovery:" + slug
             if recovery_key not in posted_links:
                 queue.setdefault(recovery_key, {"title": slug.replace("-", " "), "snippet": "",
@@ -2942,7 +2957,12 @@ def run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_s
             item["last_status"] = status
             # Retried entries move behind untouched candidates.
             queue[url] = queue.pop(url)
-            if item["attempts"] == 3 and status.startswith("source_"):
+            if status != item.get("source_status"):
+                item["source_status"] = status
+                item["source_attempts"] = 0
+            if status.startswith("source_"):
+                item["source_attempts"] = item.get("source_attempts", 0) + 1
+            if item.get("source_attempts") == 3 and status.startswith("source_"):
                 target = unresolved_social if is_social_media_url(url) else _unresolved_source_items
                 target.append((item["title"], item.get("verified_source", url)))
         published += status == "published"
