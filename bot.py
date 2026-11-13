@@ -2868,10 +2868,8 @@ def alert_needs_source_review(item, status):
 def process_alert_candidate(url, item, queue, posted_links, posted_titles, posted_keywords):
     title = item["title"]
     snippet = item["snippet"]
-    if alert_is_noise(url, title):
-        return "excluded"
-    if is_excluded(title) and (not snippet or is_excluded(snippet)):
-        return "excluded"
+    if alert_is_noise(url, title) or is_excluded(title):
+        print(f"[Google Alerts] Попередня ознака шуму, перевіряю джерело: {title[:100]}")
 
     social = is_social_media_url(url)
     host = urlparse(url).hostname or ""
