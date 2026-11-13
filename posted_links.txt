@@ -55093,3 +55093,7 @@ tg_GrantUP_17485
 tg_GrantUP_17484
 http://gurt.org.ua/news/grants/112931/#0
 https://www.iloveqatar.net/events/artsCulture/artists-intensive-study-programme-aisp-first-edition-exhibition-doha-qatar
+tg_grantovyphishky_9421
+tg_grantovyphishky_9420
+tg_grantovyphishky_9419
+tg_grantovyphishky_9418
