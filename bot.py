@@ -2738,7 +2738,11 @@ def collect_google_alert(feed_url, label, posted_links, queue):
             continue
         title = clean_html_description(getattr(entry, "title", "") or "")
         snippet = clean_html_description(getattr(entry, "summary", "") or "")
-        queue[url] = {"title": title, "snippet": snippet, "attempts": 0}
+        item = {"title": title, "snippet": snippet, "attempts": 0}
+        if getattr(entry, "content", None):
+            item["rss_html"] = entry.content[0].get("value", "")
+        item["rss_html"] = item.get("rss_html") or getattr(entry, "summary", "") or ""
+        queue[url] = item
         added += 1
     print(f"[{label}] Записів RSS: {len(feed.entries)}, нових у черзі: {added}")
 
@@ -2798,6 +2802,13 @@ def alert_page_route(url, page):
     return "direct", None
 
 
+VERIFIED_FUNDSFORNGOS_SOURCES = {
+    "open-call-2026-nordic-environment-and-economy-programme-2025-2027": "https://www.norden.org/is/node/99500",
+    "joana-biarnes-fellowship-for-photojournalists-in-spain": "https://www.fundacionpsv.org/beca-joana-biarnes/",
+    "2027-atw-media-awards-celebrating-excellence-in-african-travel-media": "https://atwconnect.com/the-2027-atw-media-awards/",
+}
+
+
 def process_alert_candidate(url, item, queue, posted_links, posted_titles, posted_keywords):
     title = item["title"]
     snippet = item["snippet"]
@@ -2805,8 +2816,12 @@ def process_alert_candidate(url, item, queue, posted_links, posted_titles, poste
         return "excluded"
 
     social = is_social_media_url(url)
-    page = fetch_html(url)
-    if page and not social:
+    host = urlparse(url).hostname or ""
+    verified_source = item.get("verified_source") or (VERIFIED_FUNDSFORNGOS_SOURCES.get(urlparse(url).path.rstrip("/").split("/")[-1])
+                       if host == "fundsforngos.org" or host.endswith(".fundsforngos.org") else None)
+    official_url = verified_source or url
+    page = fetch_html(official_url)
+    if not verified_source and page and not social:
         items = alert_listing_items(page, url)
         if items:
             for child_title, child_snippet, href in items:
@@ -2815,8 +2830,7 @@ def process_alert_candidate(url, item, queue, posted_links, posted_titles, poste
                     queue.setdefault(child_url, {"title": child_title, "snippet": child_snippet, "attempts": 0})
             return "expanded"
 
-    official_url = url
-    visited = {url}
+    visited = {url, official_url}
     for _ in range(3):
         route, linked_source = alert_page_route(official_url, page)
         if route == "direct":
@@ -2828,6 +2842,10 @@ def process_alert_candidate(url, item, queue, posted_links, posted_titles, poste
         if not linked_source and page:
             linked_source, _ = find_original_source_link(
                 page, KNOWN_AGGREGATOR_DOMAINS, priority_only=True)
+        if not linked_source and official_url == url and item.get("rss_html"):
+            linked_source, _ = find_original_source_link(
+                BeautifulSoup(item["rss_html"], "html.parser"), KNOWN_AGGREGATOR_DOMAINS,
+                priority_only=True)
         if not linked_source:
             linked_source, _, _ = find_source_via_search(title)
         if not linked_source or linked_source in visited:
@@ -2875,15 +2893,22 @@ def run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_s
         posted_links, posted_titles, posted_keywords = set(), set(), []
         load_alert_archive()
     batches = []
-    for index, feed_url in enumerate(GOOGLE_ALERT_FEEDS, 1):
+    for index, feed_url in enumerate([*GOOGLE_ALERT_FEEDS, FUNDSFORNGOS_RSS], 1):
         batch = {}
-        collect_google_alert(feed_url, f"Google Alerts #{index}", posted_links, batch)
+        label = "FundsforNGOs RSS" if feed_url == FUNDSFORNGOS_RSS else f"Google Alerts #{index}"
+        collect_google_alert(feed_url, label, posted_links, batch)
         batches.append(deque(batch.items()))
     while any(batches):
         for batch in batches:
             if batch:
                 url, item = batch.popleft()
                 queue.setdefault(url, item)
+    if not ALERT_DRY_RUN:
+        for slug, source in VERIFIED_FUNDSFORNGOS_SOURCES.items():
+            recovery_key = "recovery:" + slug
+            if recovery_key not in posted_links:
+                queue.setdefault(recovery_key, {"title": slug.replace("-", " "), "snippet": "",
+                                                "attempts": 0, "verified_source": source})
     if not queue:
         return
     save_alert_queue(queue)
@@ -2917,9 +2942,9 @@ def run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_s
             item["last_status"] = status
             # Retried entries move behind untouched candidates.
             queue[url] = queue.pop(url)
-            if item["attempts"] == 1 and status.startswith("source_"):
+            if item["attempts"] == 3 and status.startswith("source_"):
                 target = unresolved_social if is_social_media_url(url) else _unresolved_source_items
-                target.append((item["title"], url))
+                target.append((item["title"], item.get("verified_source", url)))
         published += status == "published"
         save_alert_queue(queue)
     print(f"[Google Alerts] Результати: {stats}; у черзі: {len(queue)}")
@@ -2978,6 +3003,9 @@ def run_opportunities_radar(posted_links: set, posted_titles: set, posted_keywor
 # FUNDSFORNGOS.ORG — пряма стрічка (не тільки через Google Alerts)
 # ---------------------------------------------------------------------------
 
+_tavily_limited = False
+
+
 def find_source_via_search(title: str):
     """Коли сторінка агрегатора (fundsforngos) недоступна (403) і в RSS
     немає зовнішнього посилання — шукаємо першоджерело ПО НАЗВІ через
@@ -2985,8 +3013,9 @@ def find_source_via_search(title: str):
     не з агрегатора/соцмережі/службових доменів, чия назва помітно
     збігається зі словами заголовка. Повертає (url, label, snippet) або
     (None, None, None). Без TAVILY_API_KEY чи при збої — (None, None, None)."""
+    global _tavily_limited
     key = os.getenv("TAVILY_API_KEY")
-    if not key or not title:
+    if _tavily_limited or not key or not title:
         return None, None, None
     try:
         resp = requests.post(
@@ -2995,6 +3024,10 @@ def find_source_via_search(title: str):
             json={"query": title, "search_depth": "basic", "max_results": 8},
             timeout=30,
         )
+        if resp.status_code in {429, 432}:
+            _tavily_limited = True
+            print(f"[Tavily] HTTP {resp.status_code}; пошук відкладено до наступного запуску")
+            return None, None, None
         resp.raise_for_status()
         results = resp.json().get("results", [])
     except Exception as e:
@@ -3021,98 +3054,6 @@ def find_source_via_search(title: str):
         if overlap >= 0.5:
             return url, netloc.replace("www.", "") + " — джерело", (r.get("content") or "")
     return None, None, None
-
-
-def run_fundsforngos_feed(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
-    feed = feedparser.parse(FUNDSFORNGOS_RSS)
-    if not feed.entries:
-        print("[fundsforngos.org] Немає записів")
-        return
-    print(f"[fundsforngos.org] Знайдено {len(feed.entries)} записів")
-
-    counter = {"count": 0}  # свій лічильник, не спільний з Google Alerts
-    for entry in reversed(feed.entries):
-        link = getattr(entry, "link", "")
-        if not link or link in posted_links:
-            continue
-
-        title = clean_html_description(getattr(entry, "title", "") or "")
-        if is_excluded(title):
-            save_posted_link(link)
-            posted_links.add(link)
-            continue
-
-        if "/listing/" in link:
-            process_fundsforngos_listing(link, posted_links, posted_titles, posted_keywords, counter)
-            save_posted_link(link)
-            posted_links.add(link)
-            continue
-
-        if is_title_country_restricted(title):
-            print(f"[fundsforngos.org] Skipped (країна в заголовку — програма для конкретної країни): {title[:60]}")
-            save_posted_link(link)
-            posted_links.add(link)
-            continue
-
-        # Окрема сторінка можливості (/individuals/, /ngos/ тощо)
-        page = fetch_html(link)
-        rss_html = ""
-        if getattr(entry, "content", None):
-            rss_html = entry.content[0].get("value", "")
-        rss_html = rss_html or getattr(entry, "summary", "") or ""
-
-        description = collect_paragraphs(page, min_len=80) if page else ""
-        if not description:
-            description = clean_html_description(rss_html) or title
-
-        source_url, source_label = (None, None)
-        if page:
-            source_url, source_label = find_original_source_link(page, extra_skip_domains=("fundsforngos",))
-        if not source_url:
-            # Сторінку fundsforngos.org не вдалось завантажити (403 —
-            # антибот-блокування; траплялось і для "AWS Agentic AI
-            # Grant" — весь запис тоді йшов з посиланням на цю ж
-            # заблоковану сторінку fundsforngos.org під виглядом
-            # "офіційної сторінки гранту"). Пробуємо знайти зовнішнє
-            # посилання на першоджерело прямо в HTML самого RSS-запису —
-            # fundsforngos зазвичай додає там посилання "Apply"/"Visit"
-            # на сайт донора.
-            rss_soup = BeautifulSoup(rss_html, "html.parser") if rss_html else None
-            source_url, source_label = (find_original_source_link(rss_soup, extra_skip_domains=("fundsforngos",))
-                                         if rss_soup else (None, None))
-
-        if not source_url:
-            # Останній шанс: шукаємо першоджерело за назвою (Tavily).
-            found_url, found_label, found_snippet = find_source_via_search(title)
-            if found_url:
-                print(f"[fundsforngos.org] Першоджерело знайдено пошуком: {found_url}")
-                source_url, source_label = found_url, found_label
-                src_page = fetch_html(found_url)
-                src_desc = collect_paragraphs(src_page, min_len=80) if src_page else ""
-                description = src_desc or found_snippet or description
-
-        if not source_url:
-            # Ні сторінка, ні RSS-опис не дали зовнішнього посилання на
-            # першоджерело. Публікувати з посиланням на САМ
-            # fundsforngos.org (агрегатор, а не першоджерело, і до того
-            # ж часто недоступний через 403) під лейблом "офіційна
-            # сторінка" — оманливо. Пропускаємо публікацію й надсилаємо
-            # на email для ручної перевірки замість цього.
-            _unresolved_source_items.append((title, link))
-            print(f"[fundsforngos.org] Skipped (першоджерело не знайдено, сторінка недоступна): {title[:60]}")
-            save_posted_link(link)
-            posted_links.add(link)
-            continue
-
-        try:
-            resp = build_and_send("🌍", title, source_url, description, source_label,
-                                   posted_titles, posted_keywords, posted_links, strict_fallback=True)
-            if resp.status_code == 200:
-                save_posted_link(link)
-                posted_links.add(link)
-        except Exception as e:
-            print(f"[fundsforngos.org] ERROR {link}: {e}")
-        time.sleep(2)
 
 
 # ---------------------------------------------------------------------------
@@ -3468,6 +3409,8 @@ def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: lis
     результати обробляє наш вже перевірений AI-конвеєр нижче, а не
     Groq — розділення "пошук" і "аналіз" на дві незалежні системи
     означає, що збій чи списання однієї не ламає повністю всю фічу."""
+    if _tavily_limited:
+        return
     if not _should_run_ai_discovery():
         print("[AI-пошук] Вже запускався сьогодні — пропускаємо")
         return
@@ -3499,6 +3442,9 @@ def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: lis
                 json={"query": q, "search_depth": "basic", "max_results": 8},
                 timeout=30,
             )
+            if resp.status_code in {429, 432}:
+                print(f"[Tavily] HTTP {resp.status_code}; решту пошукових запитів відкладено")
+                break
             resp.raise_for_status()
             for r in resp.json().get("results", []):
                 title = (r.get("title") or "").strip()
@@ -3625,7 +3571,6 @@ def main():
     run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_social)
 
     run_opportunities_radar(posted_links, posted_titles, posted_keywords)
-    run_fundsforngos_feed(posted_links, posted_titles, posted_keywords)
     run_colossal(posted_links, posted_titles, posted_keywords)
     run_hyperallergic(posted_links, posted_titles, posted_keywords)
     run_impactfunding(posted_links, posted_titles, posted_keywords)
@@ -3669,10 +3614,9 @@ def main():
 
     if _unresolved_source_items:
         lines = [f"- {title}\n  {url}" for title, url in _unresolved_source_items]
-        body = ("Для цих записів fundsforngos.org не вдалось знайти посилання на "
-                "справжнє першоджерело (сторінка заблокована антибот-захистом, і "
-                "в RSS-описі теж немає зовнішнього посилання) — перевірте вручну "
-                "за посиланням на сам fundsforngos.org:\n\n" + "\n\n".join(lines))
+        body = ("Після трьох спроб ці записи потребують перевірки джерела. "
+                "Вони збережені в черзі. Причину кожної спроби дивіться в GitHub Actions.\n\n"
+                + "\n\n".join(lines))
         send_notification_email(
             f"NGO Grants Bot: {len(_unresolved_source_items)} записів без знайденого першоджерела",
             body,
