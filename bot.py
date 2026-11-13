@@ -2823,9 +2823,53 @@ VERIFIED_FUNDSFORNGOS_SOURCES = {
 }
 
 
+ALERT_REVIEW_REASONS = {
+    "source_unavailable": "Сторінка недоступна",
+    "source_incomplete": "Недостатньо тексту для перевірки умов",
+    "source_unresolved": "Не підтверджено сторінку організатора",
+    "source_ambiguous": "Знайдено кілька можливих першоджерел",
+}
+_alert_source_reviews = []
+
+ALERT_OPEN_CALL = re.compile(
+    r"\b(?:open call|call for (?:applications|proposals|entries|nominations)|"
+    r"applications? (?:are )?open|apply (?:now|by)|submit (?:applications|proposals|entries)|"
+    r"application deadline|appel à candidatures)\b|прийом заявок|оголошено конкурс",
+    re.I,
+)
+
+
+def alert_is_noise(url, title):
+    path = urlparse(url).path.lower().rstrip("/")
+    host = (urlparse(url).hostname or "").lower()
+    if host == "reddit.com" or host.endswith(".reddit.com"):
+        return True
+    if path.endswith("/similar-grants") or "/tag/" in path:
+        return True
+    if ALERT_OPEN_CALL.search(title):
+        return False
+    return bool(re.search(
+        r"\bresearch proposal example\b|\bgraduation ring\b|"
+        r"\bstudents receive\b.*\bfellowships\b|\bgewinnen\b.*\bfellowships\b|"
+        r"\binterview with\b|\bwins\b.*\bprize\b|"
+        r"\braises\s+\$[\d.,]+|\bto represent\b.*\bworldwide\b|"
+        r"\btop five art shows\b|\bpursues federal and state funding\b",
+        title, re.I,
+    ))
+
+
+def alert_needs_source_review(item, status):
+    return status in ALERT_REVIEW_REASONS and bool(
+        item.get("verified_source") or
+        ALERT_OPEN_CALL.search(item["title"] + " " + item.get("snippet", ""))
+    )
+
+
 def process_alert_candidate(url, item, queue, posted_links, posted_titles, posted_keywords):
     title = item["title"]
     snippet = item["snippet"]
+    if alert_is_noise(url, title):
+        return "excluded"
     if is_excluded(title) and (not snippet or is_excluded(snippet)):
         return "excluded"
 
@@ -2972,9 +3016,11 @@ def run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_s
                 item["source_attempts"] = 0
             if status.startswith("source_"):
                 item["source_attempts"] = item.get("source_attempts", 0) + 1
-            if item.get("source_attempts") == 3 and status.startswith("source_"):
-                target = unresolved_social if is_social_media_url(url) else _unresolved_source_items
-                target.append((item["title"], item.get("verified_source", url)))
+            if (item.get("source_attempts", 0) >= 3 and not item.get("review_notified")
+                    and alert_needs_source_review(item, status)):
+                _alert_source_reviews.append((item["title"], item.get("verified_source", url),
+                                              ALERT_REVIEW_REASONS[status]))
+                item["review_notified"] = True
         published += status == "published"
         save_alert_queue(queue)
     print(f"[Google Alerts] Результати: {stats}; у черзі: {len(queue)}")
@@ -3640,6 +3686,14 @@ def main():
         send_notification_email(
             f"NGO Grants Bot: {len(_empty_content_items)} постів із порожнім вмістом",
             body,
+        )
+
+    if _alert_source_reviews:
+        lines = [f"- {title}\n  {reason}\n  {url}"
+                 for title, url, reason in _alert_source_reviews]
+        send_notification_email(
+            f"NGO Grants Bot: {len(lines)} потенційних конкурсів для перевірки джерела",
+            "Записи залишаються в черзі.\n\n" + "\n\n".join(lines),
         )
 
     if _unresolved_source_items:
