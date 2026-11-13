@@ -2803,6 +2803,14 @@ def alert_page_route(url, page):
 
 
 VERIFIED_FUNDSFORNGOS_SOURCES = {
+    "creative-kids-program-financial-assistance-for-arts-and-cultural": "https://creativekidssask.ca/apply-now/",
+    "east-of-england-co-op-community-cares-fund-support-for-community-projects": "https://www.eastofengland.coop/community/community-cares-fund",
+    "teach-for-india-2027-fellowship-transforming-education-in-india": "https://www.teachforindia.org/how-to-be-a-fellow",
+    "the-frank-knox-memorial-fellowships-for-uk-students-study-at-harvard": "https://www.frankknoxfellowships.org.uk/",
+    "advice-and-planning-grants-for-live-music-venues-in-nsw-2026-27": "https://www.nsw.gov.au/grants-and-funding/advice-and-planning-2026/27",
+    "nadara-glenkerie-wind-farm-community-fund-supporting-local-projects-in": "https://www.foundationscotland.org.uk/apply-for-funding/funding-available/glenkerie/",
+    "rwe-bowbeat-wind-farm-peebles-and-eddleston-community-fund-supporting": "https://www.foundationscotland.org.uk/apply-for-funding/funding-available/rwe-bowbeat-wind-farm-peebles-eddleston-community-fund",
+    "annandale-and-nithsdale-community-benefit-company-funding-opportunity": "https://www.foundationscotland.org.uk/apply-for-funding/funding-available/ancbc/",
     "fao-2027-innovation-award-recognizing-ground-breaking-innovations-in": "https://www.fao.org/fao-awards/innovation/about/en",
     "fao-achievement-award-2027-recognizing-excellence-in-food-and-agriculture": "https://www.fao.org/fao-awards/achievement/about/en",
     "fao-2027-champion-award-recognizing-outstanding-contributions-to": "https://www.fao.org/fao-awards/champion/about/en",
@@ -2917,7 +2925,9 @@ def run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_s
         for batch in batches:
             if batch:
                 url, item = batch.popleft()
-                queue.setdefault(url, item)
+                queued = queue.setdefault(url, item)
+                if item.get("rss_html"):
+                    queued["rss_html"] = item["rss_html"]
     if not ALERT_DRY_RUN:
         for slug, source in list(VERIFIED_FUNDSFORNGOS_SOURCES.items())[-3:]:
             recovery_key = "recovery:" + slug
