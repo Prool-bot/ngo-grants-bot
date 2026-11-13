@@ -55181,3 +55181,6 @@ tg_GrantUP_17500
 https://www.prostir.ua/?grants=tender-enerhetychnyj-audyt-teploelektrotsentrali-tets-z-metoyu-vyznachennya-zahodiv-z-pidvyschennya-enerhoefektyvnosti-ta-otsinky-bankivskoji-pryvablyvosti-projektiv-i-potentsialu-jih-masshtabuvann#0
 tg_GrantUP_17499
 https://www.prostir.ua/?grants=tender-na-zakupivlyu-komplektuvannya-ta-dostavku-naboriv-dlya-avtonomnoho-enerhozabezpechennya-obihrivu-ta-pershoji-dopomohy#0
+tg_grantovyphishky_9429
+tg_GrantUP_17494
+https://www.prostir.ua/?grants=zakipivlya-mebliv#0
