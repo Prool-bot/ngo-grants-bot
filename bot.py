@@ -454,13 +454,14 @@ def is_title_duplicate(title: str, posted_titles: set) -> bool:
     return title_hash(title) in posted_titles
 
 
-def save_title_hash(title: str, posted_titles: set, posted_keywords: list) -> None:
+def save_title_hash(title: str, posted_titles: set, posted_keywords: list,
+                    deadline: str = None) -> None:
     h = title_hash(title)
     if h not in posted_titles:
         posted_titles.add(h)
         with open(POSTED_TITLES_FILE, "a", encoding="utf-8") as f:
             f.write(h + "\n")
-    save_keyword_set(title, posted_keywords)
+    save_keyword_set(title, posted_keywords, deadline)
 
 
 # ---------------------------------------------------------------------------
@@ -500,22 +501,76 @@ def load_posted_keywords() -> list:
         return []
 
 
-def save_keyword_set(title: str, posted_keywords: list) -> None:
+_EN_MONTHS = {m: i for i, m in enumerate(
+    ["january", "february", "march", "april", "may", "june", "july",
+     "august", "september", "october", "november", "december"], 1)}
+
+
+def deadline_token(deadline_str) -> str:
+    """Дедлайн у вигляді службового ключового слова "dlРРРРММДД" (або "").
+    Розуміє "10 грудня 2026", "1 December 2026", "December 1, 2026",
+    "17.11.2026", "2026-12-01". Потрібне, щоб відрізняти той самий грант,
+    опублікований з різних джерел із різно сформульованими заголовками."""
+    from datetime import date
+    if not deadline_str:
+        return ""
+    t = str(deadline_str).lower()
+    months = "|".join(list(UKRAINIAN_MONTHS) + list(_EN_MONTHS))
+
+    def mk(y, m, d):
+        try:
+            return "dl" + date(int(y), m, int(d)).strftime("%Y%m%d")
+        except ValueError:
+            return ""
+    m = re.search(r"(\d{1,2})(?:st|nd|rd|th)?\s+(" + months + r")\.?,?\s+(\d{4})", t)
+    if m:
+        return mk(m.group(3), UKRAINIAN_MONTHS.get(m.group(2)) or _EN_MONTHS[m.group(2)], m.group(1))
+    m = re.search(r"(" + months + r")\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})", t)
+    if m:
+        return mk(m.group(3), UKRAINIAN_MONTHS.get(m.group(1)) or _EN_MONTHS[m.group(1)], m.group(2))
+    m = re.search(r"(\d{1,2})[./](\d{1,2})[./](\d{4})", t)
+    if m:
+        return mk(m.group(3), int(m.group(2)), m.group(1))
+    m = re.search(r"(\d{4})-(\d{2})-(\d{2})", t)
+    if m:
+        return mk(m.group(1), int(m.group(2)), m.group(3))
+    return ""
+
+
+def save_keyword_set(title: str, posted_keywords: list, deadline: str = None) -> None:
     kw = extract_key_words(title)
     if kw:
+        tok = deadline_token(deadline)
+        if tok:
+            kw = kw | {tok}
         posted_keywords.append(kw)
         with open(POSTED_KEYWORDS_FILE, "a", encoding="utf-8") as f:
             f.write("|".join(sorted(kw)) + "\n")
 
 
-def is_semantic_duplicate(title: str, posted_keywords: list, threshold: int = 2) -> bool:
+def is_semantic_duplicate(title: str, posted_keywords: list, threshold: int = 2,
+                          deadline: str = None) -> bool:
     kw = extract_key_words(title)
     if len(kw) < 2:
         return False
+    tok = deadline_token(deadline)
+    # Службові токени дедлайну не беруть участі в загальному правилі.
+    plain = lambda s: {w for w in s if not w.startswith("dl2")}
     for existing_kw in posted_keywords:
-        common = kw & existing_kw
-        if len(common) >= threshold:
+        if len(kw & plain(existing_kw)) >= threshold:
             return True
+    if tok:
+        # Той самий дедлайн + спільне РІДКІСНЕ слово назви (наприклад
+        # "cuhk"), навіть якщо решта заголовка сформульована інакше.
+        freq = {}
+        for existing_kw in posted_keywords:
+            for w in plain(existing_kw):
+                freq[w] = freq.get(w, 0) + 1
+        for existing_kw in posted_keywords:
+            if tok in existing_kw and any(
+                    len(w) > 3 and not w.isdigit() and freq.get(w, 0) <= 3
+                    for w in (kw & plain(existing_kw))):
+                return True
     return False
 
 
@@ -667,6 +722,11 @@ AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гра�
 - application_requirements — конкретика ПОДАЧІ: що саме готувати, з
   обмеженнями (обсяг опису у знаках, кількість сторінок/зображень,
   формат і розмір файлів), порядок подання (платформа, оплата внеску).
+- source_is_news — true, якщо сторінка-джерело є НОВИННОЮ статтею чи
+  блогом (ЗМІ, газета, новинний портал, пересказ чужої програми), а не
+  офіційною сторінкою організатора програми. Офіційні сайти організацій,
+  фондів, університетів, платформи подачі заявок й агрегатори можливостей
+  — НЕ новини (false). При сумніві — false.
 - Списки (funding, audience, supported, evaluation_criteria,
   application_requirements, priorities, key_conditions) — короткі пункти
   без початкового "•", без крапки в кінці, не більше 8 пунктів.
@@ -808,6 +868,7 @@ AI_RESPONSE_SCHEMA = {
         "priorities": {"type": "array", "items": {"type": "string"}, "nullable": True},
         "key_conditions": {"type": "array", "items": {"type": "string"}, "nullable": True},
         "contact": {"type": "string", "nullable": True},
+        "source_is_news": {"type": "boolean", "nullable": True},
         "evaluation_criteria": {"type": "array", "items": {"type": "string"}, "nullable": True},
         "application_requirements": {"type": "array", "items": {"type": "string"}, "nullable": True},
         "decision_date": {"type": "string", "nullable": True},
@@ -1203,6 +1264,12 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         return _SkippedIrrelevant()
 
     final_title = ai.get("title") or title
+    if (source_label.startswith("Google Alerts:") and ai.get("source_is_news")
+            and not ai.get("extra_links")):
+        # Новинна стаття без жодного посилання на офіційну сторінку — за
+        # вимогою каналу єдиним джерелом має бути першоджерело, а не ЗМІ.
+        print(f"[{source_label}] Skipped (джерело — новинна стаття без офіційного посилання): {final_title[:60]}")
+        return _SkippedIrrelevant()
     if source_label.startswith("Google Alerts:"):
         duplicate_url = alert_archive_duplicate(link, final_title)
         if duplicate_url:
@@ -1241,7 +1308,7 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
     # Stage 2: дедуп на AI-нормалізованому заголовку — спільний пул для
     # всіх джерел, ловить той самий грант із різних сайтів/каналів,
     # навіть якщо їхні сирі заголовки сформульовані по-різному.
-    if is_title_duplicate(final_title, posted_titles) or is_semantic_duplicate(final_title, posted_keywords):
+    if is_title_duplicate(final_title, posted_titles) or is_semantic_duplicate(final_title, posted_keywords, deadline=deadline):
         print(f"[{source_label}] Skipped (дубль після AI-нормалізації): {final_title[:60]}")
         return _SkippedDuplicate()
 
@@ -1431,7 +1498,7 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
     resp = send_telegram_message(msg, disable_preview=is_file_link)
     print(resp.text)
     if resp.status_code == 200:
-        save_title_hash(final_title, posted_titles, posted_keywords)
+        save_title_hash(final_title, posted_titles, posted_keywords, deadline)
     return resp
 
 
