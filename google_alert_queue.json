@@ -1,30 +1,4 @@
 {
-  "https://www.facebook.com/groups/biblediscussionforum/posts/29873569045614065/": {
-    "title": "Christian Youth Fellowship (A Youth Discussion Forum) - Facebook",
-    "snippet": "Christian Youth Fellowship (A Youth Discussion Forum). Deevena Carol2h. Deevena Carol is in Rajahmundry-smart city.",
-    "attempts": 65,
-    "last_status": "retry",
-    "source_status": "retry",
-    "source_attempts": 0,
-    "added": "2026-11-14",
-    "search": {
-      "at": "2026-11-14",
-      "url": "https://www.christianyouthfellowship-in.org/"
-    }
-  },
-  "https://www.facebook.com/groups/biblediscussionforum/posts/29878490691788567/": {
-    "title": "Christian Youth Fellowship (A Youth Discussion Forum) - Facebook",
-    "snippet": "Christian Youth Fellowship (A Youth Discussion Forum). Rejoice in the ... Other posts. Adnan Bazil ▻ Christian Youth Fellowship (A Youth Discussion ...",
-    "attempts": 65,
-    "last_status": "retry",
-    "source_status": "retry",
-    "source_attempts": 0,
-    "added": "2026-11-14",
-    "search": {
-      "at": "2026-11-14",
-      "url": "https://www.christianyouthfellowship-in.org/"
-    }
-  },
   "https://www.facebook.com/groups/biblediscussionforum/posts/29880387454932224/": {
     "title": "Christian Youth Fellowship (A Youth Discussion Forum) - Facebook",
     "snippet": "Kainat Hans ▻ Christian Youth Fellowship (A Youth Discussion Forum). 7m · Public · Kainat Hans. 20m · Public · جنبش کھائے وہ کیسے جس پہ تیرا ہاتھ ہے ...",
@@ -2548,6 +2522,40 @@
     "search": {
       "at": "2026-11-14",
       "url": "https://www.arteaporte.com/abstract-art/"
+    }
+  },
+  "https://www.medscape.com/viewarticle/mdangle-aha-2026-attr-cm-key-takeaways-2026a1001077": {
+    "title": "ATTR-CM at AHA 2026: From Biology to Better Care - Medscape",
+    "snippet": "... research grant from: Abbott Laboratories; Myocardial Solutions. November 13, 2026. 0. Research presented at AHA 2026 highlighted advances in ATTR-CM ...",
+    "attempts": 0,
+    "added": "2026-11-14",
+    "rss_html": "... <b>research grant</b> from: Abbott Laboratories; Myocardial Solutions. November 13, 2026. 0. Research presented at AHA 2026 highlighted advances in ATTR-CM&nbsp;..."
+  },
+  "https://www.adnkronos.com/immediapress/final-call-secure-a-fully-funded-phd-at-world-18-cuhk-before-1-december_6QEBX1SEuO2QXfETnz6gYU": {
+    "title": "Final Call: Secure a Fully-Funded PhD at World #18 CUHK Before 1 December - Adnkronos",
+    "snippet": "... PhD Fellowship Scheme (HKPFS) before applications close on 1 December 2026 at 12:00 noon Hong Kong Time (GMT+8) / 4:00 am UTC. Through CUHK's ...",
+    "attempts": 0,
+    "added": "2026-11-14",
+    "rss_html": "... <b>PhD Fellowship</b> Scheme (HKPFS) before applications close on 1 December 2026 at 12:00 noon Hong Kong Time (GMT+8) / 4:00 am UTC. Through CUHK's&nbsp;..."
+  },
+  "https://casrai.org/news/google-phd-fellows-2026-cohort-announced": {
+    "title": "Google Announces 2026 PhD Fellows - CASRAI",
+    "snippet": "Google announced its 2026 PhD Fellowship cohort, committing $13 million across 148 doctoral researchers in 38 countries for AI and computing ...",
+    "attempts": 0,
+    "added": "2026-11-14",
+    "rss_html": "Google announced its 2026 <b>PhD Fellowship</b> cohort, committing $13 million across 148 doctoral researchers in 38 countries for AI and computing&nbsp;..."
+  },
+  "https://www.facebook.com/groups/biblediscussionforum/posts/29878490691788567/": {
+    "title": "Christian Youth Fellowship (A Youth Discussion Forum) - Facebook",
+    "snippet": "Christian Youth Fellowship (A Youth Discussion Forum). Rejoice in the ... Other posts. Adnan Bazil ▻ Christian Youth Fellowship (A Youth Discussion ...",
+    "attempts": 66,
+    "last_status": "retry",
+    "source_status": "retry",
+    "source_attempts": 0,
+    "added": "2026-11-14",
+    "search": {
+      "at": "2026-11-14",
+      "url": "https://www.christianyouthfellowship-in.org/"
     }
   }
 }
