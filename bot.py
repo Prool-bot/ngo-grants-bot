@@ -4,6 +4,7 @@ import json
 import time
 import hashlib
 from collections import deque
+from datetime import date
 import feedparser
 import requests
 from urllib.parse import urlparse, parse_qs, urljoin, parse_qsl, urlencode
@@ -40,16 +41,6 @@ _ai_quota_exhausted_this_run = False
 # на JS-фреймворку, що не віддає текст без виконання JavaScript;
 # можливо, там є щось цінне, що варто перевірити вручну за посиланням.
 _empty_content_items = []
-
-# Записи fundsforngos.org (та інших вторинних джерел), де власну сторінку
-# можливості не вдалося завантажити (403/блокування антибот-захистом) і
-# в HTML самого RSS-запису теж не знайшлось зовнішнього посилання на
-# першоджерело. Раніше в такому випадку бот підписував публікацію
-# посиланням на САМУ (заблоковану) сторінку fundsforngos.org під лейблом
-# на кшталт "Офіційна сторінка гранту" — тобто видавав агрегатор за
-# першоджерело. Тепер такі записи не публікуються з хибним посиланням, а
-# йдуть одним email-дайджестом на перевірку вручну.
-_unresolved_source_items = []
 
 POSTED_LINKS_FILE = "posted_links.txt"
 POSTED_TITLES_FILE = "posted_titles.txt"
@@ -2546,103 +2537,14 @@ def extract_listing_items(page, skip_domains: tuple = ()) -> list:
     return items
 
 
-def process_fundsforngos_listing(digest_url: str, posted_links: set,
-                                  posted_titles: set, posted_keywords: list,
-                                  counter: dict) -> None:
-    """fundsforngos.org/listing/... — щоденна збірка ~20-30 можливостей у
-    форматі: жирний заголовок / Deadline: дата / опис / посилання 'more'.
-    Розбираємо на окремі пункти; для кожного заходимо на його власну
-    сторінку fundsforngos.org (як вручну), беремо звідти повний опис і
-    шукаємо посилання на справжнє першоджерело — саме воно, а не сторінка
-    fundsforngos.org, стає посиланням у фінальному пості. Рахуємо в
-    спільний ліміт публікацій за прогін (counter), щоб не залити канал."""
-    page = fetch_html(digest_url)
-    if not page:
-        print(f"[fundsforngos] Не вдалось завантажити збірку: {digest_url}")
-        return
-
-    items_found = 0
-    for p in page.find_all("p"):
-        if counter["count"] >= GOOGLE_ALERTS_MAX_PER_RUN:
-            print(f"[fundsforngos] Досягнуто ліміт {GOOGLE_ALERTS_MAX_PER_RUN} публікацій за прогін — решта зачекає наступного запуску")
-            break
-
-        more_link = None
-        for a in p.find_all("a"):
-            if a.get_text(strip=True).lower() in ("more", "read more", "[more]", "more…", "more..."):
-                more_link = a.get("href")
-                break
-        if not more_link:
-            continue
-
-        item_url = more_link.strip()
-        if item_url in posted_links:
-            continue
-
-        full_text = p.get_text("\n", strip=True)
-        lines = [l for l in full_text.split("\n") if l.strip()]
-        if not lines:
-            continue
-        title = lines[0].strip()
-
-        deadline_match = re.search(r"Deadline\s*:?\s*(.+)", full_text, re.IGNORECASE)
-        deadline_hint = deadline_match.group(1).split("\n")[0].strip() if deadline_match else ""
-
-        if is_excluded(title) or is_excluded(full_text) or is_title_country_restricted(title):
-            save_posted_link(item_url)
-            posted_links.add(item_url)
-            continue
-
-        # Заходимо на власну сторінку гранту на fundsforngos.org — там і
-        # повніший опис, і посилання на першоджерело
-        item_page = fetch_html(item_url)
-        if item_page:
-            description = collect_paragraphs(item_page, min_len=80) or full_text
-            source_url, source_label = find_original_source_link(item_page)
-        else:
-            # Сторінку конкретного пункту не вдалось завантажити (403
-            # тощо) — як і в run_fundsforngos_feed, не підписуємо
-            # публікацію посиланням на (недоступну) сторінку
-            # fundsforngos.org під виглядом першоджерела. Пробуємо
-            # знайти зовнішнє посилання прямо в HTML збірки навколо
-            # цього пункту (p), перш ніж здатися.
-            description = full_text
-            source_url, source_label = find_original_source_link(p)
-        if not source_url:
-            found_url, found_label, found_snippet = find_source_via_search(title)
-            if found_url:
-                print(f"[fundsforngos] Першоджерело знайдено пошуком: {found_url}")
-                source_url, source_label = found_url, found_label
-                src_page = fetch_html(found_url)
-                description = (collect_paragraphs(src_page, min_len=80) if src_page else "") or found_snippet or description
-        if not source_url:
-            _unresolved_source_items.append((title, item_url))
-            print(f"[fundsforngos] Skipped (першоджерело не знайдено, сторінка недоступна): {title[:60]}")
-            save_posted_link(item_url)
-            posted_links.add(item_url)
-            continue
-
-        items_found += 1
-        try:
-            resp = build_and_send("🌍", title, source_url, description,
-                                   source_label,
-                                   posted_titles, posted_keywords, posted_links,
-                                   deadline_hint=deadline_hint, strict_fallback=True)
-            if resp.status_code == 200:
-                save_posted_link(item_url)
-                posted_links.add(item_url)
-                if not isinstance(resp, _SKIP_SENTINELS):
-                    counter["count"] += 1
-        except Exception as e:
-            print(f"[fundsforngos] ERROR {item_url}: {e}")
-        time.sleep(2)
-
-    print(f"[fundsforngos] Розібрано нових пунктів зі збірки: {items_found}")
-
-
 ALERT_QUEUE_FILE = "google_alert_queue.json"
 ALERT_DRY_RUN = os.getenv("GOOGLE_ALERTS_DRY_RUN") == "1"
 ALERT_REPLAY = ALERT_DRY_RUN and os.getenv("GOOGLE_ALERTS_REPLAY") == "1"
+# Запис, який не вдалося опублікувати за 14 днів (дедлайн майже напевно
+# минув) або 10 разів поспіль не знайшов джерело, зі статусом "expired"
+# закривається як опрацьований і більше не навантажує чергу.
+ALERT_MAX_AGE_DAYS = 14
+ALERT_MAX_SOURCE_ATTEMPTS = 10
 ALERT_ARCHIVE_ROOT = "https://raw.githubusercontent.com/Prool-bot/ngo-grants-facebook/main/archive/telegram/"
 _alert_archive = None
 
@@ -2738,7 +2640,7 @@ def collect_google_alert(feed_url, label, posted_links, queue):
             continue
         title = clean_html_description(getattr(entry, "title", "") or "")
         snippet = clean_html_description(getattr(entry, "summary", "") or "")
-        item = {"title": title, "snippet": snippet, "attempts": 0}
+        item = {"title": title, "snippet": snippet, "attempts": 0, "added": date.today().isoformat()}
         if getattr(entry, "content", None):
             item["rss_html"] = entry.content[0].get("value", "")
         item["rss_html"] = item.get("rss_html") or getattr(entry, "summary", "") or ""
@@ -2871,6 +2773,10 @@ def process_alert_candidate(url, item, queue, posted_links, posted_titles, poste
     if alert_is_noise(url, title) or is_excluded(title):
         print(f"[Google Alerts] Попередня ознака шуму, перевіряю джерело: {title[:100]}")
 
+    if not item.get("verified_source") and is_title_country_restricted(title):
+        print(f"[Google Alerts] Skipped (країна в заголовку — програма для конкретної країни): {title[:100]}")
+        return "filtered"
+
     social = is_social_media_url(url)
     host = urlparse(url).hostname or ""
     verified_source = item.get("verified_source") or (VERIFIED_FUNDSFORNGOS_SOURCES.get(urlparse(url).path.rstrip("/").split("/")[-1])
@@ -2910,9 +2816,17 @@ def process_alert_candidate(url, item, queue, posted_links, posted_titles, poste
             search_title = title
             if host == "fundsforngos.org" or host.endswith(".fundsforngos.org"):
                 search_title = urlparse(url).path.rstrip("/").split("/")[-1].replace("-", " ")
-            linked_source, _, _ = find_source_via_search(search_title)
-            if not linked_source and _tavily_limited:
-                return "search_quota"
+            cached = item.get("search")
+            if cached and cached.get("url"):
+                linked_source = cached["url"]
+            elif cached and (date.today() - date.fromisoformat(cached["at"])).days < 7:
+                linked_source = None  # вже шукали менше тижня тому — квоту не витрачаємо
+            else:
+                linked_source, _, _, performed = search_source(search_title)
+                if performed:
+                    item["search"] = {"at": date.today().isoformat(), "url": linked_source}
+                elif not linked_source:
+                    return "search_quota"
         if not linked_source or linked_source in visited:
             return "source_unresolved"
         if linked_source in posted_links:
@@ -2990,16 +2904,24 @@ def run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_s
         attempts += 1
         item = queue[url]
         existing = set(queue) if ALERT_DRY_RUN else None
+        item.setdefault("added", date.today().isoformat())
+        age_days = (date.today() - date.fromisoformat(item["added"])).days
         try:
-            status = ("duplicate" if url in posted_links else
-                      process_alert_candidate(url, item, queue, posted_links, posted_titles, posted_keywords))
+            if url in posted_links:
+                status = "duplicate"
+            elif not item.get("verified_source") and (
+                    age_days >= ALERT_MAX_AGE_DAYS
+                    or item.get("source_attempts", 0) >= ALERT_MAX_SOURCE_ATTEMPTS):
+                status = "expired"
+            else:
+                status = process_alert_candidate(url, item, queue, posted_links, posted_titles, posted_keywords)
         except Exception as error:
             print(f"[Google Alerts] {type(error).__name__}: {item['title'][:100]}")
             status = "retry"
         if status == "expanded" and existing is not None:
             pending.extend(child for child in queue if child not in existing)
         stats[status] = stats.get(status, 0) + 1
-        if status in {"published", "duplicate", "expanded", "excluded", "filtered", "preview"}:
+        if status in {"published", "duplicate", "expanded", "excluded", "filtered", "preview", "expired"}:
             if not ALERT_DRY_RUN and url not in posted_links:
                 save_posted_link(url)
                 posted_links.add(url)
@@ -3077,45 +2999,142 @@ def run_opportunities_radar(posted_links: set, posted_titles: set, posted_keywor
 # FUNDSFORNGOS.ORG — пряма стрічка (не тільки через Google Alerts)
 # ---------------------------------------------------------------------------
 
-_tavily_limited = False
+# ---------------------------------------------------------------------------
+# ПОШУК ПЕРШОДЖЕРЕЛ: лише безкоштовні сервіси з автоматичним перемиканням
+# ---------------------------------------------------------------------------
+# Порядок = пріоритет. Кожен запуск бота починає з першого сервісу, тож
+# коли його безкоштовна квота оновлюється, повернення на нього відбувається
+# саме. Якщо сервіс відповідає "ліміт вичерпано" — у цьому прогоні бот
+# переходить на наступний. Ключ сервісу, якого немає в Secrets, просто
+# пропускається.
+#
+# Щоб не вигоряла місячна квота, пошук для черги Google Alerts має два
+# обмеження: SEARCH_PER_RUN запитів за прогін і SEARCH_PER_DAY за добу
+# (лічильник у search_usage.json). Результат пошуку кешується в записі
+# черги (див. process_alert_candidate), тож той самий запис не шукається
+# щогодини.
+
+SEARCH_PER_RUN = 5
+SEARCH_PER_DAY = 30
+SEARCH_USAGE_FILE = "search_usage.json"
+_search_exhausted = set()
+_search_run_calls = 0
+_search_usage = None
 
 
-def find_source_via_search(title: str):
-    """Коли сторінка агрегатора (fundsforngos) недоступна (403) і в RSS
-    немає зовнішнього посилання — шукаємо першоджерело ПО НАЗВІ через
-    Tavily (той самий ключ, що й для AI-пошуку): беремо перший результат
-    не з агрегатора/соцмережі/службових доменів, чия назва помітно
-    збігається зі словами заголовка. Повертає (url, label, snippet) або
-    (None, None, None). Без TAVILY_API_KEY чи при збої — (None, None, None)."""
-    global _tavily_limited
+class _SearchQuotaError(Exception):
+    pass
+
+
+def _search_tavily(query: str, max_results: int = 8):
     key = os.getenv("TAVILY_API_KEY")
-    if _tavily_limited or not key or not title:
-        return None, None, None
-    try:
-        resp = requests.post(
-            "https://api.tavily.com/search",
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-            json={"query": title, "search_depth": "basic", "max_results": 8},
-            timeout=30,
-        )
-        if resp.status_code in {429, 432}:
-            _tavily_limited = True
-            print(f"[Tavily] HTTP {resp.status_code}; пошук відкладено до наступного запуску")
-            return None, None, None
-        resp.raise_for_status()
-        results = resp.json().get("results", [])
-    except Exception as e:
-        print(f"[пошук першоджерела] ERROR '{title[:50]}': {e}")
-        return None, None, None
+    resp = requests.post(
+        "https://api.tavily.com/search",
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        json={"query": query, "search_depth": "basic", "max_results": max_results},
+        timeout=30,
+    )
+    if resp.status_code in {429, 432, 433}:
+        raise _SearchQuotaError(f"HTTP {resp.status_code}")
+    resp.raise_for_status()
+    return [{"title": (r.get("title") or "").strip(), "url": (r.get("url") or "").strip(),
+             "content": r.get("content") or ""} for r in resp.json().get("results", [])]
+
+
+def _search_exa(query: str, max_results: int = 8):
+    key = os.getenv("EXA_API_KEY")
+    resp = requests.post(
+        "https://api.exa.ai/search",
+        headers={"x-api-key": key, "Content-Type": "application/json"},
+        json={"query": query, "numResults": max_results,
+              "contents": {"text": {"maxCharacters": 500}}},
+        timeout=30,
+    )
+    if resp.status_code in {402, 429}:
+        raise _SearchQuotaError(f"HTTP {resp.status_code}")
+    resp.raise_for_status()
+    return [{"title": (r.get("title") or "").strip(), "url": (r.get("url") or "").strip(),
+             "content": r.get("text") or ""} for r in resp.json().get("results", [])]
+
+
+_SEARCH_PROVIDERS = (
+    ("Tavily", "TAVILY_API_KEY", _search_tavily),
+    ("Exa", "EXA_API_KEY", _search_exa),
+)
+
+
+def search_configured() -> bool:
+    return any(os.getenv(env) for _, env, _ in _SEARCH_PROVIDERS)
+
+
+def _load_search_usage() -> dict:
+    global _search_usage
+    if _search_usage is None:
+        try:
+            with open(SEARCH_USAGE_FILE, encoding="utf-8") as f:
+                _search_usage = json.load(f)
+        except (FileNotFoundError, ValueError):
+            _search_usage = {}
+        if _search_usage.get("date") != date.today().isoformat():
+            _search_usage = {"date": date.today().isoformat(), "count": 0}
+    return _search_usage
+
+
+def _save_search_usage() -> None:
+    if ALERT_DRY_RUN:
+        return
+    with open(SEARCH_USAGE_FILE, "w", encoding="utf-8") as f:
+        json.dump(_search_usage, f)
+
+
+def web_search(query: str, purpose: str = "alerts", max_results: int = 8):
+    """Повертає (results, performed). performed=False — пошук не виконувався
+    (немає ключів / усі сервіси вичерпані / вичерпано денний чи прогонний
+    бюджет), тож відсутність результату НЕ означає "нічого не знайдено".
+    purpose="discovery" не обмежується бюджетом черги Alerts."""
+    global _search_run_calls
+    budgeted = purpose == "alerts"
+    if budgeted:
+        usage = _load_search_usage()
+        if _search_run_calls >= SEARCH_PER_RUN or usage["count"] >= SEARCH_PER_DAY:
+            return [], False
+    for name, env, fn in _SEARCH_PROVIDERS:
+        if name in _search_exhausted or not os.getenv(env):
+            continue
+        if budgeted:
+            _search_run_calls += 1
+            usage["count"] += 1
+            _save_search_usage()
+        try:
+            return fn(query, max_results), True
+        except _SearchQuotaError as e:
+            _search_exhausted.add(name)
+            print(f"[{name}] ліміт вичерпано ({e}); перемикаюсь на наступний пошуковий сервіс")
+        except Exception as e:
+            print(f"[{name}] ERROR '{query[:50]}': {e}")
+    return [], False
+
+
+def search_source(title: str):
+    """Коли сторінка агрегатора недоступна чи не містить посилання на
+    першоджерело — шукаємо його ПО НАЗВІ: беремо перший результат не з
+    агрегатора/соцмережі/службових доменів, чия назва помітно збігається
+    зі словами заголовка. Повертає (url, label, snippet, performed);
+    performed=False означає, що пошук не виконувався (див. web_search)."""
+    if not title:
+        return None, None, None, False
+    results, performed = web_search(title, purpose="alerts")
+    if not performed:
+        return None, None, None, False
 
     def words(t):
         return {w for w in re.findall(r"[a-zа-яіїєґ0-9]{4,}", t.lower())}
     wanted = words(title)
     if not wanted:
-        return None, None, None
+        return None, None, None, True
     for r in results:
-        url = (r.get("url") or "").strip()
-        rtitle = (r.get("title") or "").strip()
+        url = r["url"]
+        rtitle = r["title"]
         if not url:
             continue
         netloc = urlparse(url).netloc.lower()
@@ -3124,10 +3143,10 @@ def find_source_via_search(title: str):
                                               "scholarshipdb", "mastersportal", "youtube.com", "reddit.com"))
                 or is_social_media_url(url) or is_junk_source_url(url) or is_ai_chat_share_url(url)):
             continue
-        overlap = len(wanted & words(rtitle + " " + (r.get("content") or "")[:300])) / len(wanted)
+        overlap = len(wanted & words(rtitle + " " + r["content"][:300])) / len(wanted)
         if overlap >= 0.5:
-            return url, netloc.replace("www.", "") + " — джерело", (r.get("content") or "")
-    return None, None, None
+            return url, netloc.replace("www.", "") + " — джерело", r["content"], True
+    return None, None, None, True
 
 
 # ---------------------------------------------------------------------------
@@ -3483,14 +3502,11 @@ def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: lis
     результати обробляє наш вже перевірений AI-конвеєр нижче, а не
     Groq — розділення "пошук" і "аналіз" на дві незалежні системи
     означає, що збій чи списання однієї не ламає повністю всю фічу."""
-    if _tavily_limited:
-        return
     if not _should_run_ai_discovery():
         print("[AI-пошук] Вже запускався сьогодні — пропускаємо")
         return
-    tavily_key = os.getenv("TAVILY_API_KEY")
-    if not tavily_key:
-        print("[AI-пошук] TAVILY_API_KEY не заданий — пропускаємо")
+    if not search_configured():
+        print("[AI-пошук] Немає жодного ключа пошукового API — пропускаємо")
         return
 
     queries = [
@@ -3507,29 +3523,20 @@ def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: lis
     ]
 
     items = []
+    any_search_ok = False
     for q in queries:
-        try:
-            resp = requests.post(
-                "https://api.tavily.com/search",
-                headers={"Authorization": f"Bearer {tavily_key}",
-                         "Content-Type": "application/json"},
-                json={"query": q, "search_depth": "basic", "max_results": 8},
-                timeout=30,
-            )
-            if resp.status_code in {429, 432}:
-                print(f"[Tavily] HTTP {resp.status_code}; решту пошукових запитів відкладено")
-                break
-            resp.raise_for_status()
-            for r in resp.json().get("results", []):
-                title = (r.get("title") or "").strip()
-                url = (r.get("url") or "").strip()
-                if title and url:
-                    items.append({"title": title, "url": url})
-        except Exception as e:
-            print(f"[AI-пошук] ERROR запиту '{q}': {e}")
+        results, performed = web_search(q, purpose="discovery")
+        if not performed:
+            print("[AI-пошук] Жоден безкоштовний пошуковий сервіс зараз недоступний; решту запитів відкладено")
+            break
+        any_search_ok = True
+        for r in results:
+            if r["title"] and r["url"]:
+                items.append({"title": r["title"], "url": r["url"]})
 
-    print(f"[AI-пошук] Tavily повернув {len(items)} кандидатів по {len(queries)} запитах")
-    _mark_ai_discovery_ran()
+    print(f"[AI-пошук] Пошук повернув {len(items)} кандидатів по {len(queries)} запитах")
+    if any_search_ok:
+        _mark_ai_discovery_ran()
 
     for item in items:
         title = (item.get("title") or "").strip()
@@ -3694,15 +3701,6 @@ def main():
             "Записи залишаються в черзі.\n\n" + "\n\n".join(lines),
         )
 
-    if _unresolved_source_items:
-        lines = [f"- {title}\n  {url}" for title, url in _unresolved_source_items]
-        body = ("Після трьох спроб ці записи потребують перевірки джерела. "
-                "Вони збережені в черзі. Причину кожної спроби дивіться в GitHub Actions.\n\n"
-                + "\n\n".join(lines))
-        send_notification_email(
-            f"NGO Grants Bot: {len(_unresolved_source_items)} записів без знайденого першоджерела",
-            body,
-        )
 
 
 if __name__ == "__main__":
