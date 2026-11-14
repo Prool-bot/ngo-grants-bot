@@ -55413,3 +55413,4 @@ tg_GrantUP_17504
 https://news.rub.de/english/2026-11-13-computer-science-elisabeth-kirsten-receives-2026-google-phd-fellowship
 https://www.meinbezirk.at/klosterneuburg/c-wirtschaft/google-zeichnet-drei-junge-forscher-des-ista-aus_a9010992
 https://www.facebook.com/AlphaDeltaKappaInternationalKansasCity/posts/last-call-these-applications-are-due-on-the-15th-these-are-a-great-way-to-suppor/1136848552442062/
+https://cysec.wien/news/2026-11-13_philipp-beer-selected-for-the-2026-google-phd-fellowship/
