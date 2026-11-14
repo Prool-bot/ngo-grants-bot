@@ -16,6 +16,19 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 # llama-3.3-70b-versatile — оптимальний баланс якості й безкоштовної квоти
 # на Groq (значно вища за поточний ліміт Gemini free tier, ~20 запитів/день).
 GROQ_MODEL = "openai/gpt-oss-120b"
+# Ліміти безкоштовного плану Groq рахуються ПО МОДЕЛЯХ (для gpt-oss-120b —
+# близько 200 000 токенів на добу), тож коли основна модель вичерпала
+# квоту, бот у цьому ж прогоні переходить на наступну з тим самим ключем.
+# Недоступна модель (знята з обслуговування, відхилила запит) просто
+# пропускається. Список можна змінити змінною GROQ_FALLBACK_MODELS
+# (через кому). Кожен новий запуск знову починає з основної моделі.
+GROQ_MODELS = [GROQ_MODEL] + [
+    m.strip() for m in os.getenv(
+        "GROQ_FALLBACK_MODELS",
+        "qwen/qwen3.8-27b,llama-3.3-70b-versatile,openai/gpt-oss-20b").split(",")
+    if m.strip() and m.strip() != GROQ_MODEL
+]
+_groq_models_unusable = set()
 # Для щоденного AI-пошуку (run_ai_discovery) раніше використовувалась
 # groq/compound / compound-mini — агентні моделі Groq з вбудованим
 # пошуком. Прибрано після тижня стабільного 429 і офіційного листа від
@@ -886,7 +899,15 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
     # ніж зависнути.
     MAX_WAIT = 65
     max_retries = 3
-    for attempt in range(max_retries):
+    attempt = 0
+    while attempt < max_retries:
+        model = next((m for m in GROQ_MODELS if m not in _groq_models_unusable), None)
+        if model is None:
+            print(f"[AI rate limit] {source}: усі моделі Groq вичерпали квоту — "
+                  f"відкладаю обробку до наступного прогону.")
+            _ai_quota_exhausted_this_run = True
+            break
+        payload["model"] = model
         try:
             resp = requests.post(
                 "https://api.groq.com/openai/v1/chat/completions",
@@ -901,17 +922,26 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
                 except (TypeError, ValueError):
                     raw_wait = 10 * (attempt + 1)
                 if raw_wait > MAX_WAIT:
-                    print(f"[AI rate limit] {source}: 429, сервер просить "
-                          f"{raw_wait}с — понад допустиму паузу. "
-                          f"Відкладаю обробку до наступного прогону.")
-                    _ai_quota_exhausted_this_run = True
-                    break
+                    print(f"[AI rate limit] {source}: {model}: 429, сервер просить "
+                          f"{raw_wait}с — квота цієї моделі вичерпана, пробую наступну.")
+                    _groq_models_unusable.add(model)
+                    continue
                 print(f"[AI rate limit] {source}: 429, чекаю {raw_wait}с "
                       f"(спроба {attempt + 1}/{max_retries})")
                 time.sleep(raw_wait)
+                attempt += 1
+                continue
+            if resp.status_code in (400, 404) and "model" in resp.text.lower():
+                print(f"[AI] {source}: модель {model} недоступна ({resp.status_code}) — пробую наступну.")
+                _groq_models_unusable.add(model)
                 continue
             resp.raise_for_status()
-            data = json.loads(resp.json()["choices"][0]["message"]["content"])
+            content = resp.json()["choices"][0]["message"]["content"] or ""
+            # Деякі моделі (qwen) додають <think>…</think> перед JSON.
+            content = re.sub(r"<think>.*?</think>", "", content, flags=re.S).strip()
+            if not content.startswith("{") and "{" in content:
+                content = content[content.index("{"):content.rindex("}") + 1]
+            data = json.loads(content)
             fallback.update({k: v for k, v in data.items() if v is not None})
             return fallback
         except Exception as e:
