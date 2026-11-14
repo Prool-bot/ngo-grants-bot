@@ -573,7 +573,7 @@ AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гра�
   разів (наприклад, спершу в тексті, потім ще раз у "підсумковому" блоці
   наприкінці) — візьми його один раз у відповідне поле й не повторюй
   ніде більше, включно з intro чи notes.
-- intro — СУВОРО 1-2 речення живого опису (хто/що/навіщо). Ніколи не
+- intro — 2-3 речення живого опису (хто/що/навіщо), за потреби двома короткими абзацами. Ніколи не
   вставляй туди сирий текст джерела як є, не дублюй у ньому title, і не
   перенось туди дедлайн/суму/вимоги/посилання — для них є окремі поля.
 - Прибери ВСІ декоративні емодзі-маркери оригіналу (🔸🔹🟠🔵➡️📌📍💰⏰✉️🎯📅
@@ -651,9 +651,25 @@ AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гра�
   "OpenCall" одним словом). Залиш null, якщо додати нічого змістовного.
   (форма подання, детальна сторінка умов тощо). НЕ включай туди основне
   посилання на джерело — воно додається окремо. Ніколи не обривай URL.
+- deadline — ПОВНИЙ дедлайн: дата, а якщо в тексті є — година і часовий
+  пояс (наприклад "10 грудня 2026 року, 14:00 за часом Копенгагена").
+- decision_date — коли оголосять результати/рішення, дослівно як у
+  тексті (дата або орієнтовний строк, наприклад "через 12–16 тижнів
+  після дедлайну"). Не плутати з дедлайном.
+- priorities — пріоритетні напрями/теми, які організатор ВИДІЛЯЄ в
+  тексті (до 8 коротких пунктів). null, якщо їх немає.
+- key_conditions — основні умови участі, що НЕ є вимогами до документів
+  заявки (наприклад: "не потрібно подавати готовий проєкт", "потрібна
+  співпраця з кураторською командою", "рік реалізації — 2028") — до 6
+  коротких пунктів. null, якщо немає.
+- contact — контакт організатора (email чи телефон), ТІЛЬКИ якщо він
+  буквально є в тексті. Не вигадуй і не добудовуй адреси.
+- application_requirements — конкретика ПОДАЧІ: що саме готувати, з
+  обмеженнями (обсяг опису у знаках, кількість сторінок/зображень,
+  формат і розмір файлів), порядок подання (платформа, оплата внеску).
 - Списки (funding, audience, supported, evaluation_criteria,
-  application_requirements) — короткі пункти без початкового "•", без
-  крапки в кінці.
+  application_requirements, priorities, key_conditions) — короткі пункти
+  без початкового "•", без крапки в кінці, не більше 8 пунктів.
 - Заповнюй лише ті поля, для яких є дані в оригіналі — інакше null.
   НІКОЛИ не вигадуй і не додумуй факти.
 - is_relevant = false, якщо пост НЕ є конкретним оголошенням гранту,
@@ -789,6 +805,9 @@ AI_RESPONSE_SCHEMA = {
         "supported": {"type": "array", "items": {"type": "string"}, "nullable": True},
         "eligible_categories": {"type": "array", "items": {"type": "string"}, "nullable": True},
         "application_fee": {"type": "string", "nullable": True},
+        "priorities": {"type": "array", "items": {"type": "string"}, "nullable": True},
+        "key_conditions": {"type": "array", "items": {"type": "string"}, "nullable": True},
+        "contact": {"type": "string", "nullable": True},
         "evaluation_criteria": {"type": "array", "items": {"type": "string"}, "nullable": True},
         "application_requirements": {"type": "array", "items": {"type": "string"}, "nullable": True},
         "decision_date": {"type": "string", "nullable": True},
@@ -870,6 +889,7 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
                 "evaluation_criteria": None, "application_requirements": None,
                 "decision_date": None, "notes": None, "ukraine_relevance": None,
                 "duration": None, "ukraine_eligible": True,
+                "priorities": None, "key_conditions": None, "contact": None,
                 "extra_links": None}
     if not GROQ_API_KEY:
         return fallback
@@ -1343,26 +1363,54 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
 
     if source_label.startswith("Google Alerts:"):
         header = f"{final_emoji} <b>{final_title.upper()}</b>"
-        kept = []
-        if ai.get("intro"):
-            kept.append(ai["intro"])
-        kept.extend([
-            "📅 <b>ДЕДЛАЙН</b>\n" + (deadline or "Не зазначено"),
-            "🌍 <b>ГЕОГРАФІЯ</b>\n" + (ai.get("geography") or "Не зазначено"),
-            "💰 <b>ФІНАНСУВАННЯ / ПІДТРИМКА</b>\n" + (
-                _bullets((ai.get("funding") or []) + (ai.get("supported") or [])) or "Не зазначено"),
-            "👥 <b>ХТО МОЖЕ ПОДАВАТИСЯ</b>\n" + (
-                _bullets(ai.get("audience") or []) or "Див. офіційні умови"),
-            "📝 <b>ЩО ПОДАВАТИ / ЯК ПОДАТИ</b>\n" + (
-                _bullets(requirements) or "Див. офіційні умови за посиланням"),
-        ])
+        deadline_text = deadline or "Не зазначено"
+        if ai.get("decision_date"):
+            deadline_text += f"\nРезультати відбору: {ai['decision_date']}"
+        funding_text = _bullets((ai.get("funding") or []) + (ai.get("supported") or [])) or "Не зазначено"
         if ai.get("application_fee"):
-            kept[3 if ai.get("intro") else 2] += "\nВнесок: " + ai["application_fee"]
-        links_block = "🔗 <b>ПОСИЛАННЯ</b>\n" + links_block
-        if sum(map(len, [header, *kept, links_block, hashtags])) + 24 > 4000:
-            kept = [section if len(section) <= 450 else section[:447] + "…" for section in kept]
-        if sum(map(len, [header, *kept, links_block, hashtags])) + 24 > 4000:
+            funding_text += f"\n\n⚠️ Внесок за подачу заявки: {ai['application_fee']}"
+        audience_text = _bullets(ai.get("audience") or []) or "Див. офіційні умови"
+        if ai.get("audience_excluded"):
+            audience_text += f"\n{ai['audience_excluded']}"
+        directions = ai.get("priorities") or ai.get("eligible_categories") or []
+        # (пріоритет, текст): що більше число — то раніше секція відкидається,
+        # якщо допис не вміщається в ліміт Telegram.
+        blocks = []
+        if ai.get("intro"):
+            blocks.append((0, ai["intro"]))
+        blocks += [
+            (0, "📅 <b>ДЕДЛАЙН</b>\n" + deadline_text),
+            (0, "🌍 <b>ГЕОГРАФІЯ</b>\n" + (ai.get("geography") or "Не зазначено")),
+            (1, "💰 <b>ФІНАНСУВАННЯ / ПІДТРИМКА</b>\n" + funding_text),
+        ]
+        if directions:
+            blocks.append((3, "🎯 <b>ПРІОРИТЕТНІ НАПРЯМИ</b>\n" + _bullets(directions)))
+        blocks.append((1, "👥 <b>ХТО МОЖЕ ПОДАВАТИСЯ</b>\n" + audience_text))
+        if ai.get("key_conditions"):
+            blocks.append((3, "📌 <b>ОСНОВНІ УМОВИ</b>\n" + _bullets(ai["key_conditions"])))
+        blocks.append((2, "📝 <b>ЯК ПОДАТИ ЗАЯВКУ</b>\n" + (
+            _bullets(requirements) or "Див. офіційні умови за посиланням")))
+        if ai.get("ukraine_relevance"):
+            blocks.append((1, "🇺🇦 <b>МОЖЛИВОСТІ ДЛЯ УКРАЇНИ</b>\n" + ai["ukraine_relevance"]))
+        links_block = "🔗 <b>ОФІЦІЙНІ УМОВИ ТА ПОДАННЯ ЗАЯВКИ</b>\n" + links_block
+        contact = re.sub(r"[<>]", "", str(ai.get("contact") or "")).strip()
+        if contact:
+            links_block += f"\n📧 <b>Контакт організатора:</b> {contact}"
+
+        def _total():
+            return (len(header) + len(links_block) + len(hashtags)
+                    + sum(len(t) for _, t in blocks) + 2 * (len(blocks) + 2) + 4)
+        while _total() > 4000:
+            droppable = [i for i, (pr, _) in enumerate(blocks) if pr >= 2]
+            if not droppable:
+                break
+            worst = max(blocks[i][0] for i in droppable)
+            blocks.pop(max(i for i in droppable if blocks[i][0] == worst))
+        if _total() > 4000:
+            blocks = [(pr, t if len(t) <= 450 else t[:447] + "…") for pr, t in blocks]
+        if _total() > 4000:
             return _RetryOpportunity()
+        kept = [t for _, t in blocks]
 
     parts = [header] + kept + [links_block]
     if hashtags:
