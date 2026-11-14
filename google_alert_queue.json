@@ -1,44 +1,4 @@
 {
-  "https://www.linkedin.com/posts/elisabeth-kirsten_im-very-happy-and-grateful-to-have-received-activity-7526926812959129600-XjyE": {
-    "title": "Elisabeth Kirsten's Post - LinkedIn",
-    "snippet": "I'm very happy and grateful to have received the Google PhD Fellowship ! A big thank you to my advisors, collaborators, and everyone who has ...",
-    "attempts": 14,
-    "rss_html": "I'm very happy and grateful to have received the Google <b>PhD Fellowship</b>! A big thank you to my advisors, collaborators, and everyone who has&nbsp;...",
-    "last_status": "search_quota",
-    "source_status": "search_quota",
-    "source_attempts": 0,
-    "added": "2026-11-14"
-  },
-  "https://www.eurekalert.org/news-releases/1151821": {
-    "title": "Google PhD Fellowships: Triple Success for the Institute of Science and Technology Austria (ISTA)",
-    "snippet": "image: ISTA's 2026 Google PhD Fellowship recipients. From left to right: ISTA PhD students Riccardo Cadei, Nikita Kalinin and Jiale Chen. view more.",
-    "attempts": 14,
-    "rss_html": "image: ISTA's 2026 Google <b>PhD Fellowship</b> recipients. From left to right: ISTA PhD students Riccardo Cadei, Nikita Kalinin and Jiale Chen. view more.",
-    "last_status": "retry",
-    "source_status": "retry",
-    "source_attempts": 0,
-    "added": "2026-11-14"
-  },
-  "https://e-pao.net/ge.asp?heading=23&src=131126": {
-    "title": "Luangba Baptist Youth Fellowship celebrates golden jubilee : 13th nov26 - E-Pao.net",
-    "snippet": "Source: The Sangai Express. Noney, November 12 2026: The golden jubilee celebration of Luangba Baptist Youth Fellowship (BYF), organised by the ...",
-    "attempts": 13,
-    "rss_html": "Source: The Sangai Express. Noney, November 12 2026: The golden jubilee celebration of Luangba Baptist <b>Youth Fellowship</b> (BYF), organised by the&nbsp;...",
-    "last_status": "retry",
-    "source_status": "retry",
-    "source_attempts": 0,
-    "added": "2026-11-14"
-  },
-  "https://www.globalsouthopportunities.com/2026/11/13/foundation-96/": {
-    "title": "The Hand Foundation Grants and Scholarships 2026: Apply for Nonprofit Funding and ...",
-    "snippet": "The Hand Foundation, Inc. is offering funding opportunities through its Organizational Grant Program and Student Grant Program, ...",
-    "attempts": 13,
-    "rss_html": "The Hand Foundation, Inc. is offering funding opportunities through its Organizational Grant Program and <b>Student Grant</b> Program,&nbsp;...",
-    "last_status": "retry",
-    "source_status": "retry",
-    "source_attempts": 0,
-    "added": "2026-11-14"
-  },
   "https://www.colorado.edu/atlas/2026/11/13/atlas-phd-student-named-2026-google-phd-fellow": {
     "title": "CU Boulder PhD student named a 2026 Google PhD fellow | Graduate School",
     "snippet": "Tips for Writing Graduate Student Grant Proposals · National Fellowship Opportunities · Services & Resources · Services & Resources. Graduate students ...",
@@ -2204,6 +2164,30 @@
     "snippet": "The annual exhibition returns with six new selectors, each curating a wall from an open call , along with their selected artists . It's a selling ...",
     "attempts": 15,
     "rss_html": "The annual <b>exhibition</b> returns with six new selectors, each curating a wall from an <b>open call</b>, along with their selected <b>artists</b>. It's a selling&nbsp;...",
+    "last_status": "retry",
+    "source_status": "retry",
+    "source_attempts": 0,
+    "added": "2026-11-14"
+  },
+  "https://www.linkedin.com/posts/elisabeth-kirsten_im-very-happy-and-grateful-to-have-received-activity-7526926812959129600-XjyE": {
+    "title": "Elisabeth Kirsten's Post - LinkedIn",
+    "snippet": "I'm very happy and grateful to have received the Google PhD Fellowship ! A big thank you to my advisors, collaborators, and everyone who has ...",
+    "attempts": 15,
+    "rss_html": "I'm very happy and grateful to have received the Google <b>PhD Fellowship</b>! A big thank you to my advisors, collaborators, and everyone who has&nbsp;...",
+    "last_status": "source_unresolved",
+    "source_status": "source_unresolved",
+    "source_attempts": 1,
+    "added": "2026-11-14",
+    "search": {
+      "at": "2026-11-14",
+      "url": null
+    }
+  },
+  "https://www.globalsouthopportunities.com/2026/11/13/foundation-96/": {
+    "title": "The Hand Foundation Grants and Scholarships 2026: Apply for Nonprofit Funding and ...",
+    "snippet": "The Hand Foundation, Inc. is offering funding opportunities through its Organizational Grant Program and Student Grant Program, ...",
+    "attempts": 14,
+    "rss_html": "The Hand Foundation, Inc. is offering funding opportunities through its Organizational Grant Program and <b>Student Grant</b> Program,&nbsp;...",
     "last_status": "retry",
     "source_status": "retry",
     "source_attempts": 0,
