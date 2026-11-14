@@ -1,26 +1,4 @@
 {
-  "https://www.facebook.com/groups/biblediscussionforum/posts/29880387454932224/": {
-    "title": "Christian Youth Fellowship (A Youth Discussion Forum) - Facebook",
-    "snippet": "Kainat Hans ▻ Christian Youth Fellowship (A Youth Discussion Forum). 7m · Public · Kainat Hans. 20m · Public · جنبش کھائے وہ کیسے جس پہ تیرا ہاتھ ہے ...",
-    "attempts": 65,
-    "last_status": "retry",
-    "source_status": "retry",
-    "source_attempts": 0,
-    "added": "2026-11-14",
-    "search": {
-      "at": "2026-11-14",
-      "url": "https://www.christianyouthfellowship-in.org/"
-    }
-  },
-  "https://www.facebook.com/groups/biblediscussionforum/posts/29880189654952004/": {
-    "title": "Christian Youth Fellowship (A Youth Discussion Forum) - Facebook",
-    "snippet": "Wishal Gill ▻ Christian Youth Fellowship (A Youth Discussion Forum). 52m · Public · Sunil Gill. 6h · Public · The Book Of Revelation Chapter 19 ...",
-    "attempts": 65,
-    "last_status": "search_quota",
-    "source_status": "search_quota",
-    "source_attempts": 0,
-    "added": "2026-11-14"
-  },
   "https://x.com/OpportunityDesk/status/2120440122105634880": {
     "title": "opportunitydesk.org on X: \"Debt Accountability Journalism Fellowship 2027 for Nigerian ...",
     "snippet": "Debt Accountability Journalism Fellowship 2027 for Nigerian Journalists They offer journalists an opportunity to strengthen their investigative ...",
@@ -2548,6 +2526,47 @@
   "https://www.facebook.com/groups/biblediscussionforum/posts/29878490691788567/": {
     "title": "Christian Youth Fellowship (A Youth Discussion Forum) - Facebook",
     "snippet": "Christian Youth Fellowship (A Youth Discussion Forum). Rejoice in the ... Other posts. Adnan Bazil ▻ Christian Youth Fellowship (A Youth Discussion ...",
+    "attempts": 66,
+    "last_status": "retry",
+    "source_status": "retry",
+    "source_attempts": 0,
+    "added": "2026-11-14",
+    "search": {
+      "at": "2026-11-14",
+      "url": "https://www.christianyouthfellowship-in.org/"
+    }
+  },
+  "https://www.afterschoolafrica.com/69846/iwmf-kim-wall-memorial-fund/": {
+    "title": "IWMF Kim Wall Memorial Fund 2027 for Women and Nonbinary Journalists ($5,000 Grant)",
+    "snippet": "Global Reporting Grant & Journalism Fellowship Support. Who can Apply: Gender Identity: Open to women, nonbinary, and gender-nonconforming ...",
+    "attempts": 0,
+    "added": "2026-11-14",
+    "rss_html": "Global Reporting Grant &amp; <b>Journalism Fellowship</b> Support. Who can Apply: Gender Identity: Open to women, nonbinary, and gender-nonconforming&nbsp;..."
+  },
+  "https://www.facebook.com/factcrescendosl/videos/-30-of-our-ocean-promised-whos-checkingsri-lanka-has-pledged-to-protect-30-of-it/1143587168036983/": {
+    "title": "30% of our ocean. Promised. Who's checking? Sri Lanka has pledged to protect 30% of its ocean ...",
+    "snippet": "This post announces the \"Coastal Connections Sri Lanka Journalism Fellowship 2026,\" an initiative by the organization Climate Fact Checks to protect ...",
+    "attempts": 0,
+    "added": "2026-11-14",
+    "rss_html": "This post announces the &quot;Coastal Connections Sri Lanka <b>Journalism Fellowship</b> 2026,&quot; an initiative by the organization Climate Fact Checks to protect&nbsp;..."
+  },
+  "https://www.mcgill.ca/ludmercentre/article/congratulations-dr-loic-binan-receiving-cancer-research-society-grant": {
+    "title": "Congratulations to Dr. Loïc Binan on His New Research Grant ! - McGill University",
+    "snippet": "Congratulations to Dr. Loïc Binan on His New Research Grant ! ... The Ludmer Centre proudly congratulates Dr. Loïc Binan on receiving funding through the ...",
+    "attempts": 0,
+    "added": "2026-11-14",
+    "rss_html": "Congratulations to Dr. Loïc Binan on His New <b>Research Grant</b>! ... The Ludmer Centre proudly congratulates Dr. Loïc Binan on receiving funding through the&nbsp;..."
+  },
+  "https://astanatimes.com/2026/11/archaeologists-discover-turkic-khaganate-era-settlement-in-east-kazakhstan/": {
+    "title": "Archaeologists Discover Turkic Khaganate-Era Settlement in East Kazakhstan",
+    "snippet": "The ministry's Science Committee funds it through a research grant . Photo: Ministry of Science and Higher Education. The team studied the Kalzhyr ...",
+    "attempts": 0,
+    "added": "2026-11-14",
+    "rss_html": "The ministry's Science Committee funds it through a <b>research grant</b>. Photo: Ministry of Science and Higher Education. The team studied the Kalzhyr&nbsp;..."
+  },
+  "https://www.facebook.com/groups/biblediscussionforum/posts/29880189654952004/": {
+    "title": "Christian Youth Fellowship (A Youth Discussion Forum) - Facebook",
+    "snippet": "Wishal Gill ▻ Christian Youth Fellowship (A Youth Discussion Forum). 52m · Public · Sunil Gill. 6h · Public · The Book Of Revelation Chapter 19 ...",
     "attempts": 66,
     "last_status": "retry",
     "source_status": "retry",
