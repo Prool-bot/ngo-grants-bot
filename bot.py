@@ -1085,6 +1085,65 @@ class _SkippedDuplicate:
     text = "skipped: duplicate after AI normalization"
 
 
+# ---------------------------------------------------------------------------
+# ГРУБИЙ ФІЛЬТР ДО AI та ЗАПАСНИЙ ШАБЛОН БЕЗ AI
+# ---------------------------------------------------------------------------
+# Безкоштовна квота AI мала (≈20 викликів на добу), тому на нього не
+# відправляємо те, що очевидно не є оголошенням: новини про переможців/
+# призначення (Alerts) і матеріали без жодного "грантового" слова
+# (шумні регіональні джерела).
+
+_OPPORTUNITY_WORDS_RE = re.compile(
+    r"грант|стипенд|конкурс|фінансуванн|підтримк|відбір|набір|нагород|премі|"
+    r"заявк|дедлайн|реєстраці|стажуванн|резиденці|програм[аиуі]|можливост|"
+    r"grant|fellowship|scholarship|stipend|bursary|funding|award|prize|"
+    r"open call|call for|\bcall\b|apply|application|deadline|residency|"
+    r"internship|competition|submission|"
+    r"dofinansowan|stypendi|konkurs|nabór|nabor", re.IGNORECASE)
+
+_NEWS_TITLE_RE = re.compile(
+    r"\b(?:receives?|received|selected for|wins?|won|awarded to|named|appoints?|"
+    r"appointed|celebrates?|winners? (?:announced|revealed)|announces? (?:the )?winners?|"
+    r"top (?:5|five|10|ten)\b|raises? \$|interview|obituary|jubilee|honou?rs?|"
+    r"become[s]? (?:a )?(?:fellow|member))\b|"
+    r"\b(?:отриму(?:ють|є|вали|ли)|обрано|став|стала|відзначили|вручили|переможц[іяі] конкурсу)\b",
+    re.IGNORECASE)
+
+
+def looks_like_opportunity(title: str, description: str = "") -> bool:
+    return bool(_OPPORTUNITY_WORDS_RE.search(f"{title} {description[:600]}"))
+
+
+def looks_like_news_headline(title: str) -> bool:
+    return bool(_NEWS_TITLE_RE.search(title))
+
+
+def _template_ai_from_source(title: str, description: str, deadline_hint: str = ""):
+    """Запасний розбір БЕЗ AI для джерел, де кожен запис — уже підтверджений
+    грант українською мовою (GrantHub: власна редакція, "Перевірено
+    редакцією"). Беремо назву й початок опису зі сторінки, дедлайн шукаємо
+    в тексті. Повертає dict у форматі відповіді AI або None, коли даних
+    замало (тоді запис лишається в черзі на наступний запуск)."""
+    cyr = r"[А-Яа-яІіЇїЄєҐґ]"
+    title = (title or "").strip()
+    text = re.sub(r"\s+", " ", description or "").strip()
+    if not re.search(cyr, title) or not re.search(cyr, text) or text == title:
+        return None
+    snippet = text[:700]
+    if len(text) > 700:
+        cut = max(snippet.rfind(". "), snippet.rfind("! "), snippet.rfind("? "))
+        snippet = snippet[:cut + 1] if cut >= 200 else snippet.rsplit(" ", 1)[0] + "…"
+    if len(snippet) < 60:
+        return None
+    deadline = deadline_hint or ""
+    if not deadline:
+        m = re.search(r"\d{1,2}\s+(?:" + "|".join(UKRAINIAN_MONTHS) + r")\s+\d{4}", text, re.IGNORECASE)
+        deadline = m.group(0) if m else ""
+    return {"is_relevant": True, "title": title, "intro": snippet,
+            "deadline": deadline or None, "ukraine_eligible": True,
+            "notes": "Умови участі та географію перевіряйте на сторінці конкурсу."}
+
+
 class _SkippedIrrelevant:
     """Аналогічний сурогат для випадку, коли AI визначив, що це не
     оголошення гранту/конкурсу (наприклад, відео чи загальний пост
@@ -1220,7 +1279,9 @@ def _is_redundant_deadline_item(item: str, deadline: str) -> bool:
 
 def build_and_send(emoji: str, title: str, link: str, description: str,
                     source_label: str, posted_titles: set, posted_keywords: list,
-                    posted_links: set, deadline_hint: str = "", strict_fallback: bool = False) -> requests.Response:
+                    posted_links: set, deadline_hint: str = "", strict_fallback: bool = False,
+                    template_fallback: bool = False,
+                    require_opportunity_words: bool = False) -> requests.Response:
     """Єдина точка виходу: AI-розбір на секції → фільтр релевантності →
     stage-2 дедуп на нормалізованому заголовку → збірка HTML-повідомлення →
     надсилання. Довгі секції (notes, критерії, вимоги) відкидаються першими,
@@ -1247,7 +1308,20 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         print(f"[{source_label}] Skipped (схоже, обмежено конкретною країною — без виклику AI): {title[:60]}")
         return _SkippedIrrelevant()
 
+    if require_opportunity_words and not looks_like_opportunity(title, description):
+        print(f"[{source_label}] Skipped (немає ознак гранту/конкурсу — без виклику AI): {title[:60]}")
+        return _SkippedIrrelevant()
+
     ai = reformat_post(f"{title}\n\n{description}", source_label, strict_fallback=strict_fallback)
+
+    if ai.get("_ai_failed") and template_fallback:
+        template_ai = _template_ai_from_source(title, description, deadline_hint)
+        if template_ai:
+            print(f"[{source_label}] AI недоступний — публікую запасним шаблоном без AI: {title[:60]}")
+            ai = template_ai
+        else:
+            print(f"[{source_label}] Повторити: AI недоступний, даних для шаблону замало — {title[:60]}")
+            return _RetryOpportunity()
 
     if ai.get("_ai_failed") and strict_fallback:
         print(f"[{source_label}] Повторити: ШІ не відповів — {title[:60]}")
@@ -2974,6 +3048,9 @@ def process_alert_candidate(url, item, queue, posted_links, posted_titles, poste
     if not item.get("verified_source") and is_title_country_restricted(title):
         print(f"[Google Alerts] Skipped (країна в заголовку — програма для конкретної країни): {title[:100]}")
         return "filtered"
+    if not item.get("verified_source") and looks_like_news_headline(title):
+        print(f"[Google Alerts] Skipped (заголовок схожий на новину про переможців/призначення, не на оголошення): {title[:100]}")
+        return "filtered"
 
     social = is_social_media_url(url)
     host = urlparse(url).hostname or ""
@@ -3593,7 +3670,8 @@ def run_monitor_wolynski(posted_links: set, posted_titles: set, posted_keywords:
 
         try:
             resp = build_and_send("🎓", title, source_url, description, source_label,
-                                   posted_titles, posted_keywords, posted_links, strict_fallback=True)
+                                   posted_titles, posted_keywords, posted_links, strict_fallback=True,
+                                   require_opportunity_words=True)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
@@ -3664,7 +3742,8 @@ def run_granthub(posted_links: set, posted_titles: set, posted_keywords: list) -
 
         try:
             resp = build_and_send("📋", title, source_url, description, source_label,
-                                   posted_titles, posted_keywords, posted_links, strict_fallback=True)
+                                   posted_titles, posted_keywords, posted_links, strict_fallback=True,
+                                   template_fallback=True)
             if resp.status_code == 200:
                 save_posted_link(link)
                 posted_links.add(link)
