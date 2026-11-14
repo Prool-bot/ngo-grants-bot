@@ -521,6 +521,12 @@ def is_semantic_duplicate(title: str, posted_keywords: list, threshold: int = 2)
 
 def send_telegram_message(message: str, disable_preview: bool = False) -> requests.Response:
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    # Telegram sendMessage accepts at most 4096 characters after HTML parsing.
+    # Fail closed rather than silently truncate a URL or break HTML markup.
+    import html as _html
+    plain = _html.unescape(re.sub(r"<[^>]*>", "", message))
+    if len(plain.encode("utf-16-le")) // 2 > 4096:
+        raise ValueError("Telegram post exceeds 4096 UTF-16 code units; publication blocked")
     return requests.post(url, data={
         "chat_id": CHAT_ID,
         "text": message,
@@ -831,7 +837,19 @@ def _schema_to_prompt_hint(schema: dict) -> str:
         lines.append(f"- {key}: {kind}{mark}")
     return "\n".join(lines)
 
-AI_SYSTEM_PROMPT_FULL = AI_SYSTEM_PROMPT + _schema_to_prompt_hint(AI_RESPONSE_SCHEMA)
+AI_SYSTEM_PROMPT_FULL = AI_SYSTEM_PROMPT + """
+РЕДАКЦІЙНИЙ СТАНДАРТ NGO GRANTS: готуй змістовний, але компактний
+україномовний допис за перевіреним першоджерелом. Заголовок: тематичне
+емодзі, назва конкурсу, рік, ключова сума або перевага. Вступ: організатор,
+мета та суть програми. Далі за наявності підтверджених фактів: дедлайн,
+географія заявників, фінансування/підтримка, пріоритетні напрями,
+хто може подаватися, основні умови, як подати заявку, можливості для
+України, офіційне посилання. Зберігай конкретні суми, строки, вимоги,
+обмеження, внески, перелік документів. Не вигадуй фактів і не дублюй
+відомості між полями. Якщо першоджерело неповне, не заповнюй прогалини
+припущеннями. Текст має бути достатньо змістовним для ухвалення рішення
+про участь, але не перевищувати ліміт Telegram після складання секцій.
+""" + _schema_to_prompt_hint(AI_RESPONSE_SCHEMA)
 
 
 def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> dict:
@@ -1353,12 +1371,12 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
                 _bullets((ai.get("funding") or []) + (ai.get("supported") or [])) or "Не зазначено"),
             "👥 <b>ХТО МОЖЕ ПОДАВАТИСЯ</b>\n" + (
                 _bullets(ai.get("audience") or []) or "Див. офіційні умови"),
-            "📝 <b>ЩО ПОДАВАТИ / ЯК ПОДАТИ</b>\n" + (
+            "📝 <b>ЯК ПОДАТИ ЗАЯВКУ</b>\n" + (
                 _bullets(requirements) or "Див. офіційні умови за посиланням"),
         ])
         if ai.get("application_fee"):
             kept[3 if ai.get("intro") else 2] += "\nВнесок: " + ai["application_fee"]
-        links_block = "🔗 <b>ПОСИЛАННЯ</b>\n" + links_block
+        links_block = "🔗 <b>ОФІЦІЙНІ УМОВИ ТА ПОДАННЯ ЗАЯВКИ</b>\n" + links_block
         if sum(map(len, [header, *kept, links_block, hashtags])) + 24 > 4000:
             kept = [section if len(section) <= 450 else section[:447] + "…" for section in kept]
         if sum(map(len, [header, *kept, links_block, hashtags])) + 24 > 4000:
