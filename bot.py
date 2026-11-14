@@ -1030,10 +1030,28 @@ _TITLE_COUNTRY_RE = re.compile(
 _TITLE_GLOBAL_RE = re.compile(r"Ukrain|Global|Worldwide", re.I)
 
 
+_C = "(?<![A-Za-z])(?:" + "|".join(
+    re.escape(w) for w in sorted(_TITLE_COUNTRY_WORDS, key=len, reverse=True)) + ")(?![A-Za-z])"
+# Країна в заголовку означає обмеження лише коли стоїть у "обмежувальній"
+# позиції: "(Australia)" в кінці, "... in Canada" в кінці, "for United
+# Kingdom Students", "Scotland-Based", "Denmark's". Згадка країни чи міста
+# проведення посеред заголовка ("Exhibition in Shanghai, China, December"
+# або "(German for pressure)") — це НЕ обмеження для учасників: такий запис
+# іде далі й оцінюється за змістом (ukraine_eligible від AI).
+_TITLE_COUNTRY_POSITIONAL_RE = re.compile("|".join([
+    r"\([^)]*" + _C + r"[^)]*\)\s*$",
+    r"\b(?i:in|for|across|within|of)\s+(?i:the\s+)?" + _C + r"[.!?]?\s*$",
+    r"\b(?i:for)\s+(?i:the\s+)?" + _C + r"\s+\w+",
+    _C + r"(?i:[-\s]based)\b",
+    _C + r"['’]s\b",
+    r",\s*" + _C + r"(?:\s+https?://\S+)?(?:\s*(?:\.\.\.|…))?\s*$",
+]))
+
+
 def is_title_country_restricted(title: str) -> bool:
     if _TITLE_GLOBAL_RE.search(title):
         return False
-    return bool(_TITLE_COUNTRY_RE.search(title))
+    return bool(_TITLE_COUNTRY_POSITIONAL_RE.search(title.strip()))
 
 
 def is_likely_country_restricted(text: str) -> bool:
@@ -1402,6 +1420,15 @@ def _fetch_via_reader(url: str, timeout: int = 25):
         return None
 
 
+# Пам'ять про недоступні хости в межах одного прогону. Хост, що двічі
+# поспіль не віддав сторінку навіть через r.jina.ai, більше не
+# завантажується (раніше кожна така сторінка забирала до 4 хвилин на
+# таймаути й повтори). Хост, що двічі відбив прямий запит, наступного разу
+# йде одразу через r.jina.ai, минаючи таймаути.
+_fetch_total_failures = {}
+_fetch_direct_failures = {}
+
+
 def fetch_html(url: str, timeout: int = 60, retries: int = 2):
     import warnings
     try:
@@ -1409,6 +1436,17 @@ def fetch_html(url: str, timeout: int = 60, retries: int = 2):
         warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
     except ImportError:
         pass
+    host = urlparse(url).netloc.lower()
+    if _fetch_total_failures.get(host, 0) >= 2:
+        return None
+    if _fetch_direct_failures.get(host, 0) >= 2:
+        reader_soup = _fetch_via_reader(url)
+        if reader_soup:
+            return reader_soup
+        _fetch_total_failures[host] = _fetch_total_failures.get(host, 0) + 1
+        if _fetch_total_failures[host] == 2:
+            print(f"[fetch_html] {host}: сторінки не віддаються — решту запитів до цього хоста в прогоні пропускаю")
+        return None
     for attempt in range(retries):
         try:
             resp = requests.get(url, timeout=timeout, headers={
@@ -1425,10 +1463,12 @@ def fetch_html(url: str, timeout: int = 60, retries: int = 2):
                 time.sleep(5)
             else:
                 print(f"[fetch_html] ERROR {url}: {e}")
+                _fetch_direct_failures[host] = _fetch_direct_failures.get(host, 0) + 1
                 reader_soup = _fetch_via_reader(url)
                 if reader_soup:
                     print(f"[fetch_html] Відновлено через r.jina.ai: {url}")
                     return reader_soup
+                _fetch_total_failures[host] = _fetch_total_failures.get(host, 0) + 1
                 return None
 
 
@@ -2913,6 +2953,15 @@ def run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_s
                     age_days >= ALERT_MAX_AGE_DAYS
                     or item.get("source_attempts", 0) >= ALERT_MAX_SOURCE_ATTEMPTS):
                 status = "expired"
+            elif _ai_quota_exhausted_this_run:
+                # Денну квоту Groq вичерпано: кожен запис Alerts іде в
+                # strict-режимі, тож без AI його однаково не можна
+                # опублікувати. Не завантажуємо сторінки й не витрачаємо
+                # спроби — запис просто чекає наступного запуску.
+                if not stats.get("ai_quota"):
+                    print("[Google Alerts] Квота Groq вичерпана — решту черги не обробляю до наступного запуску")
+                stats["ai_quota"] = stats.get("ai_quota", 0) + 1
+                continue
             else:
                 status = process_alert_candidate(url, item, queue, posted_links, posted_titles, posted_keywords)
         except Exception as error:
@@ -3502,6 +3551,9 @@ def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: lis
     результати обробляє наш вже перевірений AI-конвеєр нижче, а не
     Groq — розділення "пошук" і "аналіз" на дві незалежні системи
     означає, що збій чи списання однієї не ламає повністю всю фічу."""
+    if _ai_quota_exhausted_this_run:
+        print("[AI-пошук] Квота Groq вичерпана — пропускаємо до наступного запуску")
+        return
     if not _should_run_ai_discovery():
         print("[AI-пошук] Вже запускався сьогодні — пропускаємо")
         return
@@ -3539,6 +3591,9 @@ def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: lis
         _mark_ai_discovery_ran()
 
     for item in items:
+        if _ai_quota_exhausted_this_run:
+            print("[AI-пошук] Квота Groq вичерпана — решту кандидатів не обробляю")
+            break
         title = (item.get("title") or "").strip()
         link = (item.get("url") or "").strip()
         if not title or not link or link in posted_links:
