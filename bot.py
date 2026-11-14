@@ -29,6 +29,12 @@ GROQ_MODELS = [GROQ_MODEL] + [
     if m.strip() and m.strip() != GROQ_MODEL
 ]
 _groq_models_unusable = set()
+# Запасні моделі мають жорсткий ліміт токенів НА ХВИЛИНУ (≈8 000), тож майже
+# кожен виклик отримує 429 з Retry-After 10–55 с. Без обмеження ці паузи
+# розтягували запуск до 64 хв. Сумарне очікування за прогін обмежене: коли
+# бюджет вичерпано, модель вважається вичерпаною до наступного запуску.
+AI_WAIT_BUDGET_SEC = 240
+_ai_wait_spent = 0.0
 # Для щоденного AI-пошуку (run_ai_discovery) раніше використовувалась
 # groq/compound / compound-mini — агентні моделі Groq з вбудованим
 # пошуком. Прибрано після тижня стабільного 429 і офіційного листа від
@@ -856,7 +862,7 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
     зайвий пост" перестає бути правильним компромісом і перетворюється
     на потік нефільтрованого сміття (списки переможців, адмінтексти,
     зовсім не про гранти)."""
-    global _ai_quota_exhausted_this_run
+    global _ai_quota_exhausted_this_run, _ai_wait_spent
     effective_strict = strict_fallback or _ai_quota_exhausted_this_run
     fallback = {"is_relevant": not effective_strict, "emoji": None, "title": None,
                 "intro": raw_text, "deadline": None, "geography": None, "funding": None,
@@ -921,14 +927,16 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
                     raw_wait = max(1, float(resp.headers.get("Retry-After", 10 * (attempt + 1))))
                 except (TypeError, ValueError):
                     raw_wait = 10 * (attempt + 1)
-                if raw_wait > MAX_WAIT:
+                if raw_wait > MAX_WAIT or _ai_wait_spent + raw_wait > AI_WAIT_BUDGET_SEC:
                     print(f"[AI rate limit] {source}: {model}: 429, сервер просить "
-                          f"{raw_wait}с — квота цієї моделі вичерпана, пробую наступну.")
+                          f"{raw_wait}с (витрачено на очікування {int(_ai_wait_spent)}с) — "
+                          f"модель вважаю вичерпаною до наступного запуску, пробую наступну.")
                     _groq_models_unusable.add(model)
                     continue
                 print(f"[AI rate limit] {source}: 429, чекаю {raw_wait}с "
                       f"(спроба {attempt + 1}/{max_retries})")
                 time.sleep(raw_wait)
+                _ai_wait_spent += raw_wait
                 attempt += 1
                 continue
             if resp.status_code in (400, 404) and "model" in resp.text.lower():
@@ -2614,6 +2622,11 @@ ALERT_REPLAY = ALERT_DRY_RUN and os.getenv("GOOGLE_ALERTS_REPLAY") == "1"
 # минув) або 10 разів поспіль не знайшов джерело, зі статусом "expired"
 # закривається як опрацьований і більше не навантажує чергу.
 ALERT_MAX_AGE_DAYS = 14
+# Верхня межа часу на чергу Alerts за один запуск: решта лишається в черзі
+# на наступну годину. Без неї запуск може перевищити годину, і наступний
+# (поставлений у чергу GitHub) запуск збере застарілу копію репозиторію й
+# не зможе закомітити posted_links.txt (non-fast-forward).
+ALERT_RUN_BUDGET_SEC = 20 * 60
 ALERT_MAX_SOURCE_ATTEMPTS = 10
 ALERT_ARCHIVE_ROOT = "https://raw.githubusercontent.com/Prool-bot/ngo-grants-facebook/main/archive/telegram/"
 _alert_archive = None
@@ -2967,7 +2980,12 @@ def run_google_alerts(posted_links, posted_titles, posted_keywords, unresolved_s
     published = 0
     pending = deque(queue)
     attempts = 0
+    alerts_started = time.monotonic()
     while pending and published < GOOGLE_ALERTS_MAX_PER_RUN:
+        if time.monotonic() - alerts_started > ALERT_RUN_BUDGET_SEC:
+            print(f"[Google Alerts] Вичерпано {ALERT_RUN_BUDGET_SEC // 60} хв на чергу — "
+                  f"решту ({len(pending)}) залишаю на наступний запуск")
+            break
         if ALERT_DRY_RUN and attempts >= 30:
             break
         url = pending.popleft()
