@@ -25,7 +25,7 @@ GROQ_MODEL = "openai/gpt-oss-120b"
 GROQ_MODELS = [GROQ_MODEL] + [
     m.strip() for m in os.getenv(
         "GROQ_FALLBACK_MODELS",
-        "qwen/qwen3.8-27b,llama-3.3-70b-versatile,openai/gpt-oss-20b").split(",")
+        "qwen/qwen3.8-27b,openai/gpt-oss-20b").split(",")
     if m.strip() and m.strip() != GROQ_MODEL
 ]
 _groq_models_unusable = set()
@@ -1118,28 +1118,58 @@ def looks_like_news_headline(title: str) -> bool:
     return bool(_NEWS_TITLE_RE.search(title))
 
 
+def _clean_catalog_boilerplate(text: str) -> str:
+    """GrantHub/GetGrant додає службовий рядок на кшталт «Додано до каталогу
+    14 листопада 2026 Додано до каталогу з вивантаження GetGrant від 30
+    жовтня, умови звірено на сторінці X Y Французький фонд…». Це не зміст
+    гранту, а ще й містить дату публікації, яку раніше помилково брали за
+    дедлайн."""
+    text = re.sub(r"Додано до каталогу\s+\d{1,2}\s+[А-Яа-яІіЇїЄєҐґ]+\s+\d{4}\s*", "", text)
+    text = re.sub(
+        r"Додано до каталогу(?:\s+з вивантаження\s+\w+\s+від\s+\d{1,2}\s+[а-яіїєґ]+)?"
+        r"(?:,?\s*умови звірено\s+на\s+(?:\S+\s+)*?)?(?=[А-ЯІЇЄҐ])", "", text)
+    return text.strip()
+
+
 def _template_ai_from_source(title: str, description: str, deadline_hint: str = ""):
     """Запасний розбір БЕЗ AI для джерел, де кожен запис — уже підтверджений
-    грант українською мовою (GrantHub: власна редакція, "Перевірено
-    редакцією"). Беремо назву й початок опису зі сторінки, дедлайн шукаємо
-    в тексті. Повертає dict у форматі відповіді AI або None, коли даних
+    грант українською мовою (GrantHub). З тексту виймаємо вступ, дедлайн,
+    суму й тих, хто може подаватися, щоб пост мав ті ж секції, що й
+    AI-пост. Повертає dict у форматі відповіді AI або None, коли даних
     замало (тоді запис лишається в черзі на наступний запуск)."""
     cyr = r"[А-Яа-яІіЇїЄєҐґ]"
     title = (title or "").strip()
-    text = re.sub(r"\s+", " ", description or "").strip()
+    text = _clean_catalog_boilerplate(re.sub(r"\s+", " ", description or "").strip())
     if not re.search(cyr, title) or not re.search(cyr, text) or text == title:
         return None
-    snippet = text[:700]
-    if len(text) > 700:
-        cut = max(snippet.rfind(". "), snippet.rfind("! "), snippet.rfind("? "))
-        snippet = snippet[:cut + 1] if cut >= 200 else snippet.rsplit(" ", 1)[0] + "…"
-    if len(snippet) < 60:
+    sentences = [x.strip() for x in re.split(r"(?<=[.!?])\s+", text) if x.strip()]
+    if len(text) < 60 or not sentences:
         return None
+
+    months = "|".join(UKRAINIAN_MONTHS)
+    date_re = r"\d{1,2}\s+(?:" + months + r")\s+\d{4}"
     deadline = deadline_hint or ""
     if not deadline:
-        m = re.search(r"\d{1,2}\s+(?:" + "|".join(UKRAINIAN_MONTHS) + r")\s+\d{4}", text, re.IGNORECASE)
-        deadline = m.group(0) if m else ""
-    return {"is_relevant": True, "title": title, "intro": snippet,
+        m = (re.search(r"(?:до|по|не пізніше|дедлайн[:\s]*|подати заявку до)\s+(" + date_re + ")", text, re.IGNORECASE)
+             or re.search(r"(" + date_re + ")", text, re.IGNORECASE))
+        deadline = m.group(1) if m else ""
+
+    money = re.compile(r"\d[\d\s]*(?:євро|доларів|грн|гривень|€|\$|USD|EUR)|[€$]\s?\d", re.IGNORECASE)
+    who = re.compile(r"можуть|подава|право на участь|претендувати|відкрит[аіо] для", re.IGNORECASE)
+    dl_sent = re.compile(r"^(?:Заявк\w+ (?:приймаються|приймають|можна подавати)|Дедлайн)", re.IGNORECASE)
+    first, rest = sentences[0], sentences[1:]
+    funding = [x for x in rest if money.search(x)][:2]
+    audience = [x for x in rest if who.search(x) and x not in funding][:2]
+    used = set(funding) | set(audience)
+    leftovers = [x for x in rest if x not in used and not (deadline and dl_sent.match(x))]
+    intro_sents = ([first] + leftovers)[:3]
+    intro = " ".join(intro_sents)
+    if len(intro) > 600:
+        intro = intro[:600].rsplit(" ", 1)[0] + "…"
+    if not funding and not audience and len(intro) < 60:
+        return None
+    return {"is_relevant": True, "title": title, "intro": intro,
+            "funding": funding or None, "audience": audience or None,
             "deadline": deadline or None, "ukraine_eligible": True,
             "notes": "Умови участі та географію перевіряйте на сторінці конкурсу."}
 
