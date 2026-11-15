@@ -35,7 +35,7 @@ _groq_models_unusable = set()
 # ключа пропускається. Моделі можна змінити змінною GEMINI_MODELS (через кому).
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODELS = [m.strip() for m in os.getenv(
-    "GEMINI_MODELS", "gemini-2.5-flash,gemini-2.5-flash-lite").split(",") if m.strip()]
+    "GEMINI_MODELS", "gemini-3.8-flash,gemini-3.5-flash-lite,gemini-3.6-flash").split(",") if m.strip()]
 _AI_PROVIDERS = {
     "groq": {"url": "https://api.groq.com/openai/v1/chat/completions",
              "key": GROQ_API_KEY, "models": GROQ_MODELS, "max_tokens": 3072},
@@ -1049,7 +1049,7 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
                 attempt += 1
                 continue
             if resp.status_code in (400, 404) and "model" in resp.text.lower():
-                print(f"[AI] {source}: модель {provider}/{model} недоступна ({resp.status_code}) — пробую наступну.")
+                print(f"[AI] {source}: модель {provider}/{model} недоступна ({resp.status_code}: {resp.text[:160].strip()}) — пробую наступну.")
                 _groq_models_unusable.add(entry)
                 continue
             if resp.status_code in (401, 403) or (resp.status_code == 400 and "api key" in resp.text.lower()):
