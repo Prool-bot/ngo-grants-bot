@@ -1,49 +1,4 @@
 {
-  "https://www.facebook.com/UnivghardaiaDz/posts/1499248635636604/": {
-    "title": "جامعة غرداية - University of Ghardaia: CALL IS NOW OPEN FOR ERASMUS + MOBILITY ...",
-    "snippet": "Erasmus+ Call Nov 2026-Mob-E+ Stud -Spring 2027-Alanyaتنزيل Erasmus+ Call Nov 2026-Mob -E+ Stud-Spring 2027-ULSTتنزيل Erasmus+ Call Nov 2026 ...",
-    "attempts": 53,
-    "last_status": "search_quota",
-    "source_status": "search_quota",
-    "source_attempts": 0,
-    "added": "2026-11-14"
-  },
-  "https://www.art-in-berlin.de/incbmeld.php?id=7374": {
-    "title": "Open Call : JUNGE AKADEMIE - art in berlin",
-    "snippet": "Open Call : JUNGE AKADEMIE. von chk (Einspieldatum: 12.11.2026). Open Call : JUNGE AKADEMIE. Grafik: Basics09 Die JUNGE ...",
-    "attempts": 53,
-    "last_status": "retry",
-    "source_status": "retry",
-    "source_attempts": 0,
-    "added": "2026-11-14"
-  },
-  "https://www.facebook.com/groups/303204655245049/posts/1465862115645958/": {
-    "title": "OPEN CALL for Global Artists - Facebook",
-    "snippet": "Kolkata Art Academy WB ▻ OPEN CALL for Global Artists . 6h · Public ... KOLKATA ART ACADEMY WB 6th ART EXHIBITION PAINTING, SCULPTURE & PHOTOGRAPHY ...",
-    "attempts": 51,
-    "last_status": "search_quota",
-    "source_status": "search_quota",
-    "source_attempts": 0,
-    "added": "2026-11-14"
-  },
-  "https://www.instagram.com/p/DfnE0zKDV3A/": {
-    "title": "OPEN CALL Garrison Art Center is accepting proposals for the 2028 Gallery Exhibition ... - Instagram",
-    "snippet": "OPEN CALL Garrison Art Center is accepting proposals for the 2028 Gallery Exhibition season. We accept applications for solo, ...",
-    "attempts": 51,
-    "last_status": "search_quota",
-    "source_status": "search_quota",
-    "source_attempts": 0,
-    "added": "2026-11-14"
-  },
-  "https://faroeislandsdaily.com/faroese-parliament-backs-raising-income-limit-for-student-grant-recipients/": {
-    "title": "Faroese Parliament Backs Raising Income Limit For Student Grant Recipients",
-    "snippet": "... student grant recipients before financial aid is offset. Under the new measure, students will be permitted to earn up to 30,000 Faroese krónur ...",
-    "attempts": 50,
-    "last_status": "source_incomplete",
-    "source_status": "source_incomplete",
-    "source_attempts": 1,
-    "added": "2026-11-14"
-  },
   "https://www.facebook.com/groups/biblediscussionforum/posts/29888619890775647/": {
     "title": "Christian Youth Fellowship (A Youth Discussion Forum) - Facebook",
     "snippet": "S W GHARO ▻ Christian Youth Fellowship (A Youth Discussion Forum). 11m · Public · Big shout out to my newest top fans! Qasim Gharo, Sohail Sohtra ...",
@@ -2185,6 +2140,35 @@
     "title": "Assunzione in bilancio PROGETTO ERASMUS+ Call 2026 Azione KA121 dei ... - I.C. Alta Val di Sole",
     "snippet": "55 - Assunzione in bilancio PROGETTO ERASMUS+ Call 2026 Azione KA121 dei seguenti provvedimenti: 1) Avvio Progetto di mobilità “Progetto: 2026-1-IT02- ...",
     "attempts": 54,
+    "last_status": "retry",
+    "source_status": "retry",
+    "source_attempts": 0,
+    "added": "2026-11-14"
+  },
+  "https://www.forphotographersonly.com/post/bba-artist-prize-2027-open-call": {
+    "title": "BBA Artist Prize 2027 Open Call - ForPhotographersOnly",
+    "snippet": "REGISTRATION: CLICK HERE · BBA Artist Prize 2027 Open Call ... The competition welcomes both established artists with an existing exhibition ...",
+    "attempts": 0,
+    "added": "2026-11-15",
+    "rss_html": "REGISTRATION: CLICK HERE &middot; BBA Artist Prize 2027 <b>Open Call</b> ... The competition welcomes both established <b>artists</b> with an existing <b>exhibition</b>&nbsp;..."
+  },
+  "https://www.facebook.com/UnivghardaiaDz/posts/1499248635636604/": {
+    "title": "جامعة غرداية - University of Ghardaia: CALL IS NOW OPEN FOR ERASMUS + MOBILITY ...",
+    "snippet": "Erasmus+ Call Nov 2026-Mob-E+ Stud -Spring 2027-Alanyaتنزيل Erasmus+ Call Nov 2026-Mob -E+ Stud-Spring 2027-ULSTتنزيل Erasmus+ Call Nov 2026 ...",
+    "attempts": 54,
+    "last_status": "retry",
+    "source_status": "retry",
+    "source_attempts": 0,
+    "added": "2026-11-14",
+    "search": {
+      "at": "2026-11-15",
+      "url": "https://relex.univ-ghardaia.edu.dz/wp-content/uploads/sites/10/2026/11/erasmus-call-nov-2026-mob-e-stud-spring-2027-pamukkale.pdf"
+    }
+  },
+  "https://faroeislandsdaily.com/faroese-parliament-backs-raising-income-limit-for-student-grant-recipients/": {
+    "title": "Faroese Parliament Backs Raising Income Limit For Student Grant Recipients",
+    "snippet": "... student grant recipients before financial aid is offset. Under the new measure, students will be permitted to earn up to 30,000 Faroese krónur ...",
+    "attempts": 51,
     "last_status": "retry",
     "source_status": "retry",
     "source_attempts": 0,
