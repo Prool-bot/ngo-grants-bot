@@ -1,40 +1,4 @@
 {
-  "https://www.facebook.com/groups/biblediscussionforum/posts/29888619890775647/": {
-    "title": "Christian Youth Fellowship (A Youth Discussion Forum) - Facebook",
-    "snippet": "S W GHARO ▻ Christian Youth Fellowship (A Youth Discussion Forum). 11m · Public · Big shout out to my newest top fans! Qasim Gharo, Sohail Sohtra ...",
-    "attempts": 50,
-    "last_status": "search_quota",
-    "source_status": "search_quota",
-    "source_attempts": 0,
-    "added": "2026-11-14"
-  },
-  "https://www.facebook.com/groups/biblediscussionforum/posts/29893677610269875/": {
-    "title": "Other posts - Christian Youth Fellowship (A Youth Discussion Forum)",
-    "snippet": "Asif Saleem ▻ Christian Youth Fellowship (A Youth Discussion Forum). 6m · Public · Asif Saleem. 16m · Public · #GoodMorningEveryone #TodayVerse · May ...",
-    "attempts": 50,
-    "last_status": "search_quota",
-    "source_status": "search_quota",
-    "source_attempts": 0,
-    "added": "2026-11-14"
-  },
-  "https://www.facebook.com/groups/biblediscussionforum/posts/29894458160191820/": {
-    "title": "Christian Youth Fellowship (A Youth Discussion Forum) - Facebook",
-    "snippet": "Stella Simon ▻ Christian Youth Fellowship (A Youth Discussion Forum). 7m · Public. 0 reactions. Robinson Sajid ▻ Christian Youth Fellowship (A ...",
-    "attempts": 50,
-    "last_status": "search_quota",
-    "source_status": "search_quota",
-    "source_attempts": 0,
-    "added": "2026-11-14"
-  },
-  "https://www.eqs-news.com/news/corporate/final-call-secure-a-fully-funded-phd-at-world-18-cuhk-before-1-december/18a974e8-adfc-4a63-acd7-26a1f63fc51e_en": {
-    "title": "Final Call: Secure a Fully-Funded PhD at World #18 CUHK Before 1 December - EQS News",
-    "snippet": "EQS Newswire / 12/11/2026 / 11:00 CET/CEST. A Practical Guide to Unlocking the US$232,420+ Hong Kong PhD Fellowship Scheme.",
-    "attempts": 48,
-    "last_status": "retry",
-    "source_status": "retry",
-    "source_attempts": 0,
-    "added": "2026-11-14"
-  },
   "https://sokonikwetu.com/scholarships/the-knight-wallace-journalism-fellowship-2027-2028-for-mid-career-journalists-to-study-at-the-university-of-michighan-usa-fully-funded": {
     "title": "The Knight-Wallace Journalism Fellowship 2027/2028 for mid-career Journalists to study at ...",
     "snippet": "Application Deadline: December 1, 2026. Applications are now open for the 2027/2028 Knight-Wallace Journalism Fellowship .",
@@ -2169,6 +2133,22 @@
     "title": "Faroese Parliament Backs Raising Income Limit For Student Grant Recipients",
     "snippet": "... student grant recipients before financial aid is offset. Under the new measure, students will be permitted to earn up to 30,000 Faroese krónur ...",
     "attempts": 51,
+    "last_status": "retry",
+    "source_status": "retry",
+    "source_attempts": 0,
+    "added": "2026-11-14"
+  },
+  "https://www.facebook.com/somalijobs/posts/hurford-youth-fellows-program-somalijobs-deadline-30november-2026/1643466651158449/": {
+    "title": "\"Hurford Youth Fellows Program #Somalijobs Deadline: 30/November 2026 - Facebook",
+    "snippet": "This post by Opportunities Circle is an advertisement for the Hurford Youth Fellowship 2025 program in the USA. The video and text highlight that the ...",
+    "attempts": 0,
+    "added": "2026-11-15",
+    "rss_html": "This post by Opportunities Circle is an advertisement for the Hurford <b>Youth Fellowship</b> 2025 program in the USA. The video and text highlight that the&nbsp;..."
+  },
+  "https://www.eqs-news.com/news/corporate/final-call-secure-a-fully-funded-phd-at-world-18-cuhk-before-1-december/18a974e8-adfc-4a63-acd7-26a1f63fc51e_en": {
+    "title": "Final Call: Secure a Fully-Funded PhD at World #18 CUHK Before 1 December - EQS News",
+    "snippet": "EQS Newswire / 12/11/2026 / 11:00 CET/CEST. A Practical Guide to Unlocking the US$232,420+ Hong Kong PhD Fellowship Scheme.",
+    "attempts": 49,
     "last_status": "retry",
     "source_status": "retry",
     "source_attempts": 0,
