@@ -29,6 +29,21 @@ GROQ_MODELS = [GROQ_MODEL] + [
     if m.strip() and m.strip() != GROQ_MODEL
 ]
 _groq_models_unusable = set()
+# Другий безкоштовний провайдер — Google Gemini (AI Studio, без картки), через
+# OpenAI-сумісний ендпоінт. Окрема квота, тож коли Groq вичерпано, бот
+# переходить сюди, а наступного запуску знову починає з Groq. Провайдер без
+# ключа пропускається. Моделі можна змінити змінною GEMINI_MODELS (через кому).
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODELS = [m.strip() for m in os.getenv(
+    "GEMINI_MODELS", "gemini-2.5-flash,gemini-2.5-flash-lite").split(",") if m.strip()]
+_AI_PROVIDERS = {
+    "groq": {"url": "https://api.groq.com/openai/v1/chat/completions",
+             "key": GROQ_API_KEY, "models": GROQ_MODELS, "max_tokens": 3072},
+    "gemini": {"url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+               "key": GEMINI_API_KEY, "models": GEMINI_MODELS, "max_tokens": 8192},
+}
+# Порядок = пріоритет. (провайдер, модель) для кожного, у кого є ключ.
+_AI_CHAIN = [(name, m) for name, cfg in _AI_PROVIDERS.items() if cfg["key"] for m in cfg["models"]]
 # Запасні моделі мають жорсткий ліміт токенів НА ХВИЛИНУ (≈8 000), тож майже
 # кожен виклик отримує 429 з Retry-After 10–55 с. Без обмеження ці паузи
 # розтягували запуск до 64 хв. Сумарне очікування за прогін обмежене: коли
@@ -952,8 +967,9 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
                 "duration": None, "ukraine_eligible": True,
                 "priorities": None, "key_conditions": None, "contact": None,
                 "extra_links": None}
-    if not GROQ_API_KEY:
+    if not _AI_CHAIN:
         return fallback
+    raw_text = raw_text[:12000]  # 413 Payload Too Large на довгих сторінках
     if _ai_quota_exhausted_this_run:
         # Не витрачаємо навіть одну спробу — вже знаємо, що квота
         # вичерпана до кінця цього прогону.
@@ -988,17 +1004,20 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
     max_retries = 3
     attempt = 0
     while attempt < max_retries:
-        model = next((m for m in GROQ_MODELS if m not in _groq_models_unusable), None)
-        if model is None:
-            print(f"[AI rate limit] {source}: усі моделі Groq вичерпали квоту — "
+        entry = next((e for e in _AI_CHAIN if e not in _groq_models_unusable), None)
+        if entry is None:
+            print(f"[AI rate limit] {source}: усі AI-моделі ({', '.join(sorted({e[0] for e in _AI_CHAIN}))}) вичерпали квоту — "
                   f"відкладаю обробку до наступного прогону.")
             _ai_quota_exhausted_this_run = True
             break
+        provider, model = entry
+        cfg = _AI_PROVIDERS[provider]
         payload["model"] = model
+        payload["max_tokens"] = cfg["max_tokens"]
         try:
             resp = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {GROQ_API_KEY}",
+                cfg["url"],
+                headers={"Authorization": f"Bearer {cfg['key']}",
                          "Content-Type": "application/json"},
                 json=payload,
                 timeout=30,
@@ -1008,11 +1027,20 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
                     raw_wait = max(1, float(resp.headers.get("Retry-After", 10 * (attempt + 1))))
                 except (TypeError, ValueError):
                     raw_wait = 10 * (attempt + 1)
+                if provider == "gemini":
+                    # Gemini не шле Retry-After: денну квоту видно в тілі
+                    # ("PerDay"), коротку — за retryDelay.
+                    if "PerDay" in resp.text:
+                        raw_wait = 86400
+                    else:
+                        mm = re.search(r'"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"', resp.text)
+                        if mm:
+                            raw_wait = max(1, float(mm.group(1)))
                 if raw_wait > MAX_WAIT or _ai_wait_spent + raw_wait > AI_WAIT_BUDGET_SEC:
-                    print(f"[AI rate limit] {source}: {model}: 429, сервер просить "
+                    print(f"[AI rate limit] {source}: {provider}/{model}: 429, сервер просить "
                           f"{raw_wait}с (витрачено на очікування {int(_ai_wait_spent)}с) — "
                           f"модель вважаю вичерпаною до наступного запуску, пробую наступну.")
-                    _groq_models_unusable.add(model)
+                    _groq_models_unusable.add(entry)
                     continue
                 print(f"[AI rate limit] {source}: 429, чекаю {raw_wait}с "
                       f"(спроба {attempt + 1}/{max_retries})")
@@ -1021,8 +1049,13 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
                 attempt += 1
                 continue
             if resp.status_code in (400, 404) and "model" in resp.text.lower():
-                print(f"[AI] {source}: модель {model} недоступна ({resp.status_code}) — пробую наступну.")
-                _groq_models_unusable.add(model)
+                print(f"[AI] {source}: модель {provider}/{model} недоступна ({resp.status_code}) — пробую наступну.")
+                _groq_models_unusable.add(entry)
+                continue
+            if resp.status_code in (401, 403) or (resp.status_code == 400 and "api key" in resp.text.lower()):
+                print(f"[AI] {source}: {provider} відхилив ключ/доступ ({resp.status_code}) — "
+                      f"пропускаю провайдера, пробую наступного.")
+                _groq_models_unusable.update(e for e in _AI_CHAIN if e[0] == provider)
                 continue
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"] or ""
