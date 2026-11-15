@@ -29,6 +29,7 @@ GROQ_MODELS = [GROQ_MODEL] + [
     if m.strip() and m.strip() != GROQ_MODEL
 ]
 _groq_models_unusable = set()
+_ai_transient_fails = {}  # (провайдер, модель) -> тайм-аути/5xx за запуск
 # Другий безкоштовний провайдер — Google Gemini (AI Studio, без картки), через
 # OpenAI-сумісний ендпоінт. Окрема квота, тож коли Groq вичерпано, бот
 # переходить сюди, а наступного запуску знову починає з Groq. Провайдер без
@@ -38,9 +39,11 @@ GEMINI_MODELS = [m.strip() for m in os.getenv(
     "GEMINI_MODELS", "gemini-3.8-flash,gemini-3.5-flash-lite,gemini-3.6-flash").split(",") if m.strip()]
 _AI_PROVIDERS = {
     "groq": {"url": "https://api.groq.com/openai/v1/chat/completions",
-             "key": GROQ_API_KEY, "models": GROQ_MODELS, "max_tokens": 3072},
+             "key": GROQ_API_KEY, "models": GROQ_MODELS, "max_tokens": 3072,
+             "timeout": 30, "extra": {}},
     "gemini": {"url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-               "key": GEMINI_API_KEY, "models": GEMINI_MODELS, "max_tokens": 8192},
+               "key": GEMINI_API_KEY, "models": GEMINI_MODELS, "max_tokens": 8192,
+               "timeout": 60, "extra": {"reasoning_effort": "low"}},
 }
 # Порядок = пріоритет. (провайдер, модель) для кожного, у кого є ключ.
 _AI_CHAIN = [(name, m) for name, cfg in _AI_PROVIDERS.items() if cfg["key"] for m in cfg["models"]]
@@ -1001,7 +1004,7 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
     # "квоту сьогодні вже не відновити", і краще одразу впасти у fallback,
     # ніж зависнути.
     MAX_WAIT = 65
-    max_retries = 3
+    max_retries = 6
     attempt = 0
     while attempt < max_retries:
         entry = next((e for e in _AI_CHAIN if e not in _groq_models_unusable), None)
@@ -1014,14 +1017,26 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
         cfg = _AI_PROVIDERS[provider]
         payload["model"] = model
         payload["max_tokens"] = cfg["max_tokens"]
+        payload.pop("reasoning_effort", None)
+        payload.update(cfg["extra"])
         try:
             resp = requests.post(
                 cfg["url"],
                 headers={"Authorization": f"Bearer {cfg['key']}",
                          "Content-Type": "application/json"},
                 json=payload,
-                timeout=30,
+                timeout=cfg["timeout"],
             )
+            if resp.status_code >= 500 or (provider == "gemini" and resp.status_code == 400):
+                # Тимчасова недоступність (503) або невідомий параметр/модель:
+                # двічі поспіль — вважаємо модель непридатною до кінця запуску.
+                _ai_transient_fails[entry] = _ai_transient_fails.get(entry, 0) + 1
+                print(f"[AI] {source}: {provider}/{model}: HTTP {resp.status_code} "
+                      f"({_ai_transient_fails[entry]}/2): {resp.text[:120].strip()}")
+                if _ai_transient_fails[entry] >= 2 or resp.status_code == 400:
+                    _groq_models_unusable.add(entry)
+                attempt += 1
+                continue
             if resp.status_code == 429:
                 try:
                     raw_wait = max(1, float(resp.headers.get("Retry-After", 10 * (attempt + 1))))
@@ -1066,6 +1081,13 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False) -> 
             data = json.loads(content)
             fallback.update({k: v for k, v in data.items() if v is not None})
             return fallback
+        except requests.exceptions.Timeout:
+            _ai_transient_fails[entry] = _ai_transient_fails.get(entry, 0) + 1
+            print(f"[AI] {source}: {provider}/{model}: тайм-аут ({_ai_transient_fails[entry]}/2)")
+            if _ai_transient_fails[entry] >= 2:
+                _groq_models_unusable.add(entry)
+            attempt += 1
+            continue
         except Exception as e:
             print(f"[AI reformat failed] {source}: {e}")
             fallback["_ai_failed"] = True
@@ -1480,7 +1502,7 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
     if ai.get("audience"):
         block = "👥 <b>Хто може податися:</b>\n" + _bullets(ai["audience"])
         if ai.get("audience_excluded"):
-            block += f"\n{ai['audience_excluded']}"
+            block += f"\n🚫 Не підходять: {ai['audience_excluded']}"
         sections.append((2, block))
     if ai.get("ukraine_relevance"):
         sections.append((2, f"🇺🇦 {ai['ukraine_relevance']}"))
@@ -1575,7 +1597,7 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
             funding_text += f"\n\n⚠️ Внесок за подачу заявки: {ai['application_fee']}"
         audience_text = _bullets(ai.get("audience") or []) or "Див. офіційні умови"
         if ai.get("audience_excluded"):
-            audience_text += f"\n{ai['audience_excluded']}"
+            audience_text += f"\n🚫 Не підходять: {ai['audience_excluded']}"
         directions = ai.get("priorities") or ai.get("eligible_categories") or []
         # (пріоритет, текст): що більше число — то раніше секція відкидається,
         # якщо допис не вміщається в ліміт Telegram.
