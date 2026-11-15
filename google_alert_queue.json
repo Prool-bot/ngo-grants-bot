@@ -1,53 +1,4 @@
 {
-  "https://www.facebook.com/groups/biblediscussionforum/posts/29921428577494778/": {
-    "title": "Christian Youth Fellowship (A Youth Discussion Forum) - Facebook",
-    "snippet": "A Othniel ▻ Christian Youth Fellowship (A Youth Discussion Forum). 21m · Public. A Othniel. 27m · Public. Today's Encouragement *God's Adequacy for ...",
-    "attempts": 0,
-    "added": "2026-11-14",
-    "rss_html": "A Othniel ▻ Christian <b>Youth Fellowship</b> (A Youth Discussion Forum). 21m · Public. A Othniel. 27m · Public. Today's Encouragement *God's Adequacy for&nbsp;..."
-  },
-  "https://www.facebook.com/groups/biblediscussionforum/posts/29927401523564150/": {
-    "title": "Christian Youth Fellowship (A Youth Discussion Forum) - Facebook",
-    "snippet": "Abonyi Ikechukwu ▻ Christian Youth Fellowship (A Youth Discussion Forum). 11m · Public. Abonyi Ikechukwu. 2y · Public · If God could destroy the ...",
-    "attempts": 0,
-    "added": "2026-11-14",
-    "rss_html": "Abonyi Ikechukwu ▻ Christian <b>Youth Fellowship</b> (A Youth Discussion Forum). 11m · Public. Abonyi Ikechukwu. 2y · Public &middot; If God could destroy the&nbsp;..."
-  },
-  "https://x.com/OpportunityDesk/status/2120440122105634880": {
-    "title": "opportunitydesk.org on X: \"Debt Accountability Journalism Fellowship 2027 for Nigerian ...",
-    "snippet": "Debt Accountability Journalism Fellowship 2027 for Nigerian Journalists They offer journalists an opportunity to strengthen their investigative ...",
-    "attempts": 65,
-    "last_status": "source_unresolved",
-    "source_status": "source_unresolved",
-    "source_attempts": 1,
-    "added": "2026-11-14",
-    "search": {
-      "at": "2026-11-14",
-      "url": null
-    }
-  },
-  "https://x.com/opportunitiesfy/status/2120478082327101540": {
-    "title": "OPPORTUNITIES FOR YOUTH on X: \" Spencer Education Journalism Fellowship 2027 ...",
-    "snippet": "Spencer Education Journalism Fellowship 2027–2028 Funding deep-dive education projects at Columbia University:• Up to $85k stipend ($43k ...",
-    "attempts": 65,
-    "last_status": "retry",
-    "source_status": "retry",
-    "source_attempts": 0,
-    "added": "2026-11-14",
-    "search": {
-      "at": "2026-11-14",
-      "url": "https://deadlinedesk.org/opportunities/spencer-education-fellowship/"
-    }
-  },
-  "https://engineering.uci.edu/_migrated-binaries/files/google_phd_fellowship_call_2024.pdf": {
-    "title": "Google PhD Fellowship Program - UC Irvine's Samueli School of Engineering",
-    "snippet": "Past awardees from the PhD Fellowship program are not eligible to apply again. • Students will have completed graduate coursework in their PhD by the ...",
-    "attempts": 65,
-    "last_status": "retry",
-    "source_status": "retry",
-    "source_attempts": 0,
-    "added": "2026-11-14"
-  },
   "https://x.com/opportunitiesfy/status/2120477965968388350": {
     "title": "OPPORTUNITIES FOR YOUTH on X: \" Spencer Education Journalism Fellowship 2027 ...",
     "snippet": "Spencer Education Journalism Fellowship 2027–2028 at @Columbia! Get up to $85k stipend + $7.5k research funding for books, podcasts, ...",
@@ -2230,5 +2181,27 @@
     "last_status": "retry",
     "source_status": "retry",
     "source_attempts": 0
+  },
+  "https://x.com/OpportunityDesk/status/2120440122105634880": {
+    "title": "opportunitydesk.org on X: \"Debt Accountability Journalism Fellowship 2027 for Nigerian ...",
+    "snippet": "Debt Accountability Journalism Fellowship 2027 for Nigerian Journalists They offer journalists an opportunity to strengthen their investigative ...",
+    "attempts": 66,
+    "last_status": "source_unresolved",
+    "source_status": "source_unresolved",
+    "source_attempts": 2,
+    "added": "2026-11-14",
+    "search": {
+      "at": "2026-11-14",
+      "url": null
+    }
+  },
+  "https://engineering.uci.edu/_migrated-binaries/files/google_phd_fellowship_call_2024.pdf": {
+    "title": "Google PhD Fellowship Program - UC Irvine's Samueli School of Engineering",
+    "snippet": "Past awardees from the PhD Fellowship program are not eligible to apply again. • Students will have completed graduate coursework in their PhD by the ...",
+    "attempts": 66,
+    "last_status": "retry",
+    "source_status": "retry",
+    "source_attempts": 0,
+    "added": "2026-11-14"
   }
 }
