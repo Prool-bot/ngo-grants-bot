@@ -184,6 +184,9 @@ IMPACTFUNDING_RSS = "https://impactfunding.substack.com/feed"
 # бо нові записи завжди зверху першої сторінки.
 MONITOR_WOLYNSKI_URL = "https://monitorwolynski.com/uk/categories/konkursy"
 GRANTHUB_LIST_URL = "https://granthub.org.ua/granty"
+CASCADE_BASE = "https://cascadefunding.eu"
+CASCADE_LIST_URL = CASCADE_BASE + "/open-calls/"
+CASCADE_MAX_PER_RUN = 6  # щоб не з'їсти AI-квоту, якщо в архіві сайту сотні закритих конкурсів
 
 # Сайти-агрегатори/блоги можливостей, які САМІ НЕ Є першоджерелом — вони
 # лише переказують і посилаються на офіційну сторінку донора/фонду.
@@ -3700,6 +3703,86 @@ def run_granthub(posted_links: set, posted_titles: set, posted_keywords: list) -
           f"{already_posted} вже було раніше, {skipped_by_title} відфільтровано за заголовком")
 
 
+def run_cascade_funding(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
+    """cascadefunding.eu — агрегатор відкритих конкурсів каскадного
+    (sub-grant) фінансування в ЄС. Сторінка конкурсу /open-call/<slug>/ має
+    повний текст (сума, дедлайн, хто може подаватись, посилання на подачу).
+    Список на /open-calls/ у початковому HTML показує лише вибрані, решту
+    підвантажує JS, тому додатково читаємо sitemap WordPress. Усі знайдені
+    URL логуються — за першим запуском видно, що саме віддає сайт."""
+    urls = []
+
+    def collect(page):
+        if not page:
+            return
+        for a in page.find_all("a", href=True):
+            h = a["href"]
+            if "/open-call/" in h and "/open-calls" not in h:
+                urls.append(h if h.startswith("http") else CASCADE_BASE + h)
+        for loc in page.find_all("loc"):
+            h = loc.get_text(strip=True)
+            if "/open-call/" in h and "/open-calls" not in h:
+                urls.append(h)
+
+    collect(fetch_html(CASCADE_LIST_URL))
+    for sm in (CASCADE_BASE + "/wp-sitemap.xml", CASCADE_BASE + "/sitemap_index.xml", CASCADE_BASE + "/sitemap.xml"):
+        idx = fetch_html(sm)
+        if not idx:
+            continue
+        subs = [l.get_text(strip=True) for l in idx.find_all("loc")]
+        if not subs:
+            continue
+        found_before = len(urls)
+        collect(idx)
+        for sub in subs:
+            if sub.endswith(".xml") and "open-call" in sub:
+                collect(fetch_html(sub))
+        if len(urls) > found_before:
+            break
+
+    seen, items = set(), []
+    for u in urls:
+        u = u.split("#")[0].rstrip("/") + "/"
+        if u not in seen and u.rstrip("/").split("/")[-1] != "open-call":
+            seen.add(u)
+            items.append(u)
+    print(f"[Cascade Funding] Знайдено {len(items)} сторінок конкурсів")
+
+    already = processed = 0
+    for link in items:
+        if link in posted_links:
+            already += 1
+            continue
+        if processed >= CASCADE_MAX_PER_RUN:
+            break
+        detail = fetch_html(link)
+        if not detail:
+            continue
+        h1 = detail.find("h1")
+        title = h1.get_text(" ", strip=True) if h1 else link.rstrip("/").split("/")[-1].replace("-", " ")
+        if is_excluded(title):
+            save_posted_link(link)
+            posted_links.add(link)
+            continue
+        description = collect_paragraphs(detail, min_len=40) or title
+        source_url, source_label = find_original_source_link(detail, extra_skip_domains=("cascadefunding",))
+        if not source_url:
+            source_url, source_label = link, "Cascade Funding Hub — джерело"
+        processed += 1
+        try:
+            resp = build_and_send("🇪🇺", title, source_url, description, source_label,
+                                   posted_titles, posted_keywords, posted_links, strict_fallback=True)
+            if resp.status_code == 200:
+                save_posted_link(link)
+                posted_links.add(link)
+                if source_url != link:
+                    save_posted_link(source_url)
+                    posted_links.add(source_url)
+        except Exception as e:
+            print(f"[Cascade Funding] ERROR {link}: {e}")
+    print(f"[Cascade Funding] Підсумок: {processed} оброблено, {already} вже було раніше")
+
+
 def _should_run_ai_discovery() -> bool:
     """Раз на добу за UTC-датою. Стан зберігається у файлі, який
     комітиться в репозиторій разом із posted_links.txt — так само, як
@@ -3905,6 +3988,7 @@ def main():
     run_simple_source(PROSTIR_RSS,  "Громадський Простір — джерело", posted_links,
                       posted_titles, posted_keywords, strict_fallback=True)
     run_granthub(posted_links, posted_titles, posted_keywords)
+    run_cascade_funding(posted_links, posted_titles, posted_keywords)
     run_ai_discovery(posted_links, posted_titles, posted_keywords)
     # run_undp_ukraine() вимкнено: undp.org захищений WAF (Cloudflare/Akamai),
     # що блокує запити з хмарних IP GitHub Actions незалежно від заголовків —
