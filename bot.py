@@ -346,12 +346,12 @@ HASHTAG_RULES = [
     ("#медіа",      ["медіа", "журналіст", "ЗМІ", "преса", "видання", "мовлен", "редакц", "journalism",
                      "media", "broadcasting", "documentary"]),
     ("#наука",      ["наук", "дослідж", "університет", "академі", "research", "science", "phd",
-                     "стипенді", "fellowship", "аспірант"]),
+                     "аспірант", "postdoc", "докторант"]),
     ("#бізнес",     ["бізнес", "підприємц", "МСБ", "МСП", "стартап", "startup", "business",
-                     "підприємств", "фермер", "агро", "виробництв"]),
+                     "підприємств", "фермер", "агро"]),
     ("#ГО",         ["громадськ організац", "нго", "нко", "го", "civil society",
                      "некомерційн", "благодійн", "фонд підтримки"]),
-    ("#відновлення",["відновлен", "reconstruction", "rebuild", "громад", "реінтеграц", "деокупац"]),
+    ("#відновлення",["відновлен", "reconstruction", "rebuild", "територіальн", "реінтеграц", "деокупац"]),
     ("#освіта",     ["освіт", "навчальн", "школ", "коледж", "education", "training", "викладач"]),
     ("#екологія",   ["еколог", "довкілл", "environment", "зелен", "клімат", "climate", "energy",
                      "енергоефектив", "відновлювальн"]),
@@ -815,8 +815,15 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False,
     MAX_WAIT = 65
     max_retries = 6
     attempt = 0
+    item_skip = set()  # моделі, що відхилили саме цей запис (400)
     while attempt < max_retries:
-        entry = next((e for e in _AI_CHAIN if e not in _groq_models_unusable), None)
+        entry = next((e for e in _AI_CHAIN
+                      if e not in _groq_models_unusable and e not in item_skip), None)
+        if entry is None and any(e not in _groq_models_unusable for e in _AI_CHAIN):
+            # Моделі живі, але кожна відхилила САМЕ цей запис (400) — не
+            # вважаємо квоту вичерпаною, запис просто повторять наступного разу.
+            print(f"[AI] {source}: усі моделі відхилили цей запис (400) — повторю наступного запуску.")
+            break
         if entry is None:
             print(f"[AI rate limit] {source}: усі AI-моделі ({', '.join(sorted({e[0] for e in _AI_CHAIN}))}) вичерпали квоту — "
                   f"відкладаю обробку до наступного прогону.")
@@ -845,6 +852,14 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False,
                 if _ai_transient_fails[entry] >= 2 or resp.status_code == 400:
                     _groq_models_unusable.add(entry)
                 attempt += 1
+                continue
+            if resp.status_code == 400 and provider != "gemini" and "model" not in resp.text.lower() \
+                    and "api key" not in resp.text.lower():
+                # Напр. json_validate_failed: модель видала зламаний JSON саме
+                # на цьому тексті — пробуємо іншу модель, а не здаємось.
+                print(f"[AI] {source}: {provider}/{model}: 400 на цьому записі "
+                      f"({resp.text[:100].strip()}) — пробую наступну модель.")
+                item_skip.add(entry)
                 continue
             if resp.status_code == 429:
                 try:
@@ -1171,6 +1186,19 @@ def _strip_channel_promo(text):
     return "\n".join(kept).strip() if len(kept) != len([x for x in parts if x.strip()]) else text
 
 
+_FILLER_RE = re.compile(
+    r"^(знайти|ознайомитись|ознайомтесь|перейти|перейдіть|дивіться|зверніться)\b"
+    r"|детальні умови|форм[аиу] подання|за посиланням|на офіційн\w+ (сайті|сторінці)"
+    r"|надати документи, передбачені|^(сума|дедлайн|умови)[^.]{0,40}(не вказан|не зазначен)",
+    re.IGNORECASE)
+
+
+def _is_filler_item(item: str) -> bool:
+    """Службові фрази-відписки AI замість фактів («знайти детальні умови на
+    сайті», «Сума не вказана») — вони нічого не додають і лише захаращують пост."""
+    return bool(item) and bool(_FILLER_RE.search(item.strip()))
+
+
 def _is_redundant_deadline_item(item: str, deadline: str) -> bool:
     """AI-інструкція прямо каже не повторювати дедлайн поза полем deadline,
     але модель (особливо Groq) це іноді ігнорує — кладе в
@@ -1221,7 +1249,9 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         print(f"[{source_label}] Skipped (немає ознак гранту/конкурсу — без виклику AI): {title[:60]}")
         return _SkippedIrrelevant()
 
-    if strict_fallback and ai_preclassify(title, description, source_label) is False:
+    _ua_announce = bool(re.search(r"[А-Яа-яІіЇїЄєҐґ]", title or "")
+                        and re.search(r"грант|конкурс|програм|заявк|стипенд|прийом", title or "", re.IGNORECASE))
+    if strict_fallback and not _ua_announce and ai_preclassify(title, description, source_label) is False:
         print(f"[{source_label}] Skipped (передфільтр AI: не оголошення): {title[:60]}")
         return _SkippedIrrelevant()
 
@@ -1345,11 +1375,11 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
     if ai.get("evaluation_criteria"):
         sections.append((4, "🔬 <b>Оцінюватимуть:</b>\n" + _bullets(ai["evaluation_criteria"])))
     requirements = [r for r in (ai.get("application_requirements") or [])
-                     if not _is_redundant_deadline_item(r, deadline)]
+                     if not _is_redundant_deadline_item(r, deadline) and not _is_filler_item(r)]
     if requirements:
         sections.append((4, "📝 <b>У заявці потрібно надати:</b>\n" + _bullets(requirements)))
     notes = ai.get("notes")
-    if notes and not _is_redundant_deadline_item(notes, deadline):
+    if notes and not _is_redundant_deadline_item(notes, deadline) and not _is_filler_item(notes):
         sections.append((5, notes))
 
     total_content_len = sum(len(text) for _, text in sections)
