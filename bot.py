@@ -37,6 +37,14 @@ _ai_transient_fails = {}  # (провайдер, модель) -> тайм-ау�
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODELS = [m.strip() for m in os.getenv(
     "GEMINI_MODELS", "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.8-flash,gemini-3.6-flash").split(",") if m.strip()]
+# Третій безкоштовний провайдер — Cloudflare Workers AI (10 000 «нейронів» на
+# добу, скидання о 00:00 UTC), через OpenAI-сумісний ендпоінт. Потрібні обидва
+# секрети: CLOUDFLARE_ACCOUNT_ID і CLOUDFLARE_API_TOKEN. Моделі — змінною
+# CLOUDFLARE_MODELS (через кому).
+CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID")
+CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN")
+CLOUDFLARE_MODELS = [m.strip() for m in os.getenv(
+    "CLOUDFLARE_MODELS", "@cf/google/gemma-4-26b-a4b-it,@cf/qwen/qwen3.8-27b").split(",") if m.strip()]
 _AI_PROVIDERS = {
     "groq": {"url": "https://api.groq.com/openai/v1/chat/completions",
              "key": GROQ_API_KEY, "models": GROQ_MODELS, "max_tokens": 3072,
@@ -44,6 +52,10 @@ _AI_PROVIDERS = {
     "gemini": {"url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
                "key": GEMINI_API_KEY, "models": GEMINI_MODELS, "max_tokens": 8192,
                "timeout": 60, "extra": {"reasoning_effort": "low"}},
+    "cloudflare": {"url": f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1/chat/completions",
+                   "key": CLOUDFLARE_API_TOKEN if CLOUDFLARE_ACCOUNT_ID else None,
+                   "models": CLOUDFLARE_MODELS, "max_tokens": 3072,
+                   "timeout": 60, "extra": {}},
 }
 # Порядок = пріоритет. (провайдер, модель) для кожного, у кого є ключ.
 _AI_CHAIN = [(name, m) for name, cfg in _AI_PROVIDERS.items() if cfg["key"] for m in cfg["models"]]
@@ -846,7 +858,7 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False,
                 json=payload,
                 timeout=cfg["timeout"],
             )
-            if resp.status_code >= 500 or (provider == "gemini" and resp.status_code == 400):
+            if resp.status_code >= 500 or (provider in ("gemini", "cloudflare") and resp.status_code == 400):
                 # Тимчасова недоступність (503) або невідомий параметр/модель:
                 # двічі поспіль — вважаємо модель непридатною до кінця запуску.
                 _ai_transient_fails[entry] = _ai_transient_fails.get(entry, 0) + 1
@@ -856,7 +868,7 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False,
                     _groq_models_unusable.add(entry)
                 attempt += 1
                 continue
-            if resp.status_code == 400 and provider != "gemini" and "model" not in resp.text.lower() \
+            if resp.status_code == 400 and provider == "groq" and "model" not in resp.text.lower() \
                     and "api key" not in resp.text.lower():
                 # Напр. json_validate_failed: модель видала зламаний JSON саме
                 # на цьому тексті — пробуємо іншу модель, а не здаємось.
@@ -869,6 +881,8 @@ def reformat_post(raw_text: str, source: str, strict_fallback: bool = False,
                     raw_wait = max(1, float(resp.headers.get("Retry-After", 10 * (attempt + 1))))
                 except (TypeError, ValueError):
                     raw_wait = 10 * (attempt + 1)
+                if provider == "cloudflare" and re.search(r"neuron|daily|4006|allocation", resp.text, re.IGNORECASE):
+                    raw_wait = 86400  # добову безкоштовну квоту вичерпано (до 00:00 UTC)
                 if provider == "gemini":
                     # Gemini не шле Retry-After: денну квоту видно в тілі
                     # ("PerDay"), коротку — за retryDelay.
