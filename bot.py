@@ -3724,7 +3724,31 @@ def run_cascade_funding(posted_links: set, posted_titles: set, posted_keywords: 
             if "/open-call/" in h and "/open-calls" not in h:
                 urls.append(h)
 
-    collect(fetch_html(CASCADE_LIST_URL))
+    list_page = fetch_html(CASCADE_LIST_URL)
+    collect(list_page)
+    # Повний список (~50 конкурсів) підвантажується скриптом сторінки, а в
+    # початковому HTML лише 2 вибрані. 1) Логуємо ajax/REST-адреси зі сторінки —
+    # за ними видно, звідки сайт бере список. 2) Пробуємо стандартний
+    # WordPress REST для типу запису open-call.
+    if list_page is not None:
+        html = str(list_page)
+        hints = sorted(set(re.findall(r"https?:[\\/]+[^\"'\s<>]*?(?:admin-ajax\.php|wp-json[^\"'\s<>]*)", html)))[:8]
+        acts = sorted(set(re.findall(r"[\"']action[\"']\s*:\s*[\"']([\w\-]+)[\"']", html)))[:8]
+        print(f"[Cascade Funding] ajax/REST-підказки зі сторінки: {hints}; action: {acts}")
+    for rest in ("open-call", "open_call", "open-calls", "calls"):
+        try:
+            r = requests.get(f"{CASCADE_BASE}/wp-json/wp/v2/{rest}", params={"per_page": 100, "_fields": "link"},
+                             timeout=30, headers={"User-Agent": "Mozilla/5.0"})
+            if r.status_code == 200 and isinstance(r.json(), list):
+                got = [x.get("link") for x in r.json() if isinstance(x, dict) and x.get("link")]
+                print(f"[Cascade Funding] REST wp/v2/{rest}: {len(got)} записів")
+                urls.extend(got)
+                if got:
+                    break
+            else:
+                print(f"[Cascade Funding] REST wp/v2/{rest}: HTTP {r.status_code}")
+        except Exception as e:
+            print(f"[Cascade Funding] REST wp/v2/{rest}: {type(e).__name__}")
     for sm in (CASCADE_BASE + "/wp-sitemap.xml", CASCADE_BASE + "/sitemap_index.xml", CASCADE_BASE + "/sitemap.xml"):
         idx = fetch_html(sm)
         if not idx:
@@ -3739,6 +3763,14 @@ def run_cascade_funding(posted_links: set, posted_titles: set, posted_keywords: 
                 collect(fetch_html(sub))
         if len(urls) > found_before:
             break
+
+    # Ручні посилання: сторінки конкурсів, яких бот сам не бачить (список на
+    # сайті підвантажується скриптом). Додавайте URL по одному в рядок.
+    try:
+        with open("cascade_seed_urls.txt", encoding="utf-8") as f:
+            urls.extend(l.strip() for l in f if l.strip().startswith("http"))
+    except FileNotFoundError:
+        pass
 
     seen, items = set(), []
     for u in urls:
