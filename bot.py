@@ -2444,7 +2444,17 @@ JUNK_SOURCE_DOMAINS = (
 
 
 def is_junk_source_url(url: str) -> bool:
-    netloc = urlparse(url).netloc.lower()
+    parsed = urlparse(url)
+    netloc = parsed.netloc.lower()
+    # Лише http(s): whatsapp://send?text=…, tg://, viber:// тощо — це кнопки
+    # «поділитися», а не першоджерело.
+    if parsed.scheme and parsed.scheme.lower() not in ("http", "https"):
+        return True
+    # Хост без крапки («https://send/…») — не реальний сайт: Telegram не робить
+    # з такого посилання гіперпосилання, і в дописі лишався підпис
+    # «send — джерело» без жодного посилання (допис 3960).
+    if "." not in netloc.split("@")[-1].split(":")[0]:
+        return True
     return any(d in netloc for d in JUNK_SOURCE_DOMAINS)
 
 
