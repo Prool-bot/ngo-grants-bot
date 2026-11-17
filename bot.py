@@ -3316,14 +3316,37 @@ def _search_exa(query: str, max_results: int = 8):
              "content": r.get("text") or ""} for r in resp.json().get("results", [])]
 
 
+def _search_tinyfish(query: str, max_results: int = 8):
+    """TinyFish Search: безкоштовно до 12 000 запитів на добу (скидання о 00:00
+    UTC), 30 запитів на хвилину, без картки. Ключ — у заголовку X-API-Key."""
+    key = os.getenv("TINYFISH_API_KEY")
+    time.sleep(2.2)  # ліміт 30 запитів/хв
+    resp = requests.get(
+        "https://api.search.tinyfish.ai",
+        headers={"X-API-Key": key},
+        params={"query": query},
+        timeout=30,
+    )
+    if resp.status_code in {401, 402, 429}:
+        raise _SearchQuotaError(f"HTTP {resp.status_code}")
+    resp.raise_for_status()
+    return [{"title": (r.get("title") or "").strip(), "url": (r.get("url") or "").strip(),
+             "content": r.get("snippet") or ""} for r in resp.json().get("results", [])][:max_results]
+
+
+# (назва, змінна ключа, функція, запитів за прогін, запитів за добу). Порядок =
+# пріоритет: першим іде сервіс із найбільшою безкоштовною квотою; коли він
+# вичерпаний чи недоступний — наступний. Бюджети окремі для кожного сервісу.
 _SEARCH_PROVIDERS = (
-    ("Tavily", "TAVILY_API_KEY", _search_tavily),
-    ("Exa", "EXA_API_KEY", _search_exa),
+    ("TinyFish", "TINYFISH_API_KEY", _search_tinyfish, 150, 1000),
+    ("Tavily", "TAVILY_API_KEY", _search_tavily, SEARCH_PER_RUN, 30),
+    ("Exa", "EXA_API_KEY", _search_exa, SEARCH_PER_RUN, SEARCH_PER_DAY),
 )
+_search_run_by = {}
 
 
 def search_configured() -> bool:
-    return any(os.getenv(env) for _, env, _ in _SEARCH_PROVIDERS)
+    return any(os.getenv(p[1]) for p in _SEARCH_PROVIDERS)
 
 
 def _load_search_usage() -> dict:
@@ -3336,6 +3359,10 @@ def _load_search_usage() -> dict:
             _search_usage = {}
         if _search_usage.get("date") != date.today().isoformat():
             _search_usage = {"date": date.today().isoformat(), "count": 0}
+        if "by" not in _search_usage:
+            # Старий формат (один спільний лічильник): розрахунок ішов через Exa,
+            # бо Tavily вичерпаний, тож не даємо Exa «нові» 40 того ж дня.
+            _search_usage["by"] = {"Exa": _search_usage.get("count", 0)} if _search_usage.get("count") else {}
     return _search_usage
 
 
@@ -3349,19 +3376,20 @@ def _save_search_usage() -> None:
 def web_search(query: str, purpose: str = "alerts", max_results: int = 8):
     """Повертає (results, performed). performed=False — пошук не виконувався
     (немає ключів / усі сервіси вичерпані / вичерпано денний чи прогонний
-    бюджет), тож відсутність результату НЕ означає "нічого не знайдено".
-    purpose="discovery" не обмежується бюджетом черги Alerts."""
-    global _search_run_calls
+    бюджет кожного), тож відсутність результату НЕ означає "нічого не
+    знайдено". purpose="discovery" не обмежується бюджетом черги Alerts.
+    Бюджет (за прогін і за добу) ведеться окремо для кожного сервісу."""
     budgeted = purpose == "alerts"
-    if budgeted:
-        usage = _load_search_usage()
-        if _search_run_calls >= SEARCH_PER_RUN or usage["count"] >= SEARCH_PER_DAY:
-            return [], False
-    for name, env, fn in _SEARCH_PROVIDERS:
+    usage = _load_search_usage() if budgeted else None
+    for name, env, fn, per_run, per_day in _SEARCH_PROVIDERS:
         if name in _search_exhausted or not os.getenv(env):
             continue
+        if budgeted and (_search_run_by.get(name, 0) >= per_run
+                         or usage["by"].get(name, 0) >= per_day):
+            continue
         if budgeted:
-            _search_run_calls += 1
+            _search_run_by[name] = _search_run_by.get(name, 0) + 1
+            usage["by"][name] = usage["by"].get(name, 0) + 1
             usage["count"] += 1
             _save_search_usage()
         try:
