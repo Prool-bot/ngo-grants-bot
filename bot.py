@@ -638,7 +638,7 @@ def send_notification_email(subject: str, body: str) -> None:
 AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гранти для українських НГО. Розбери оголошення на структуровані поля за схемою нижче. Не вигадуй фактів: немає даних — null.
 
 ЗАГАЛЬНІ ПРАВИЛА
-- title: власний короткий (до ~100 знаків) завершений заголовок, не копія заголовка джерела.
+- title: власний короткий (до ~100 знаків) завершений заголовок УКРАЇНСЬКОЮ (навіть якщо джерело англійською), не копія заголовка джерела.
 - Кожен факт (дедлайн, сума, аудиторія, посилання) — РІВНО в одне поле, один раз; не дублюй у intro/notes.
 - intro: 2-3 речення (хто/що/навіщо); без дедлайну, суми, вимог, посилань і без сирого тексту джерела.
 - Прибери декоративні емодзі оригіналу. emoji — ОДИН тематичний (🔐 безпека, 🌱 екологія, ✍️ журналістика, 📸 фото, 🎓 освіта, 🎨 мистецтво, 💻 технології, ⚖️ права людини, 💼 бізнес, 🏥 здоров'я, 🕊️ мир тощо).
@@ -3745,6 +3745,23 @@ def run_cascade_funding(posted_links: set, posted_titles: set, posted_keywords: 
         hints = sorted(set(re.findall(r"https?:[\\/]+[^\"'\s<>]*?(?:admin-ajax\.php|wp-json[^\"'\s<>]*)", html)))[:8]
         acts = sorted(set(re.findall(r"[\"']action[\"']\s*:\s*[\"']([\w\-]+)[\"']", html)))[:8]
         print(f"[Cascade Funding] ajax/REST-підказки зі сторінки: {hints}; action: {acts}")
+    # Сайт має власний REST-простір wcc/v1 — читаємо його маршрути й пробуємо
+    # ті, що схожі на список конкурсів (без параметрів у шляху).
+    try:
+        rr = requests.get(f"{CASCADE_BASE}/wp-json/wcc/v1", timeout=30, headers={"User-Agent": "Mozilla/5.0"})
+        routes = list((rr.json().get("routes") or {}).keys()) if rr.status_code == 200 else []
+        print(f"[Cascade Funding] wcc/v1 маршрути (HTTP {rr.status_code}): {routes[:15]}")
+        for route in routes:
+            if "(?P" in route or not re.search(r"call|open|grant|list|search", route):
+                continue
+            rg = requests.get(CASCADE_BASE + "/wp-json" + route, params={"per_page": 100},
+                              timeout=30, headers={"User-Agent": "Mozilla/5.0"})
+            found = re.findall(r"https?:\\?/\\?/cascadefunding\.eu\\?/open-call\\?/[\w\-]+\\?/?", rg.text)
+            found = [f.replace("\\/", "/") for f in found]
+            print(f"[Cascade Funding] {route}: HTTP {rg.status_code}, посилань на конкурси: {len(set(found))}")
+            urls.extend(found)
+    except Exception as e:
+        print(f"[Cascade Funding] wcc/v1: {type(e).__name__}")
     for rest in ("open-call", "open_call", "open-calls", "calls"):
         try:
             r = requests.get(f"{CASCADE_BASE}/wp-json/wp/v2/{rest}", params={"per_page": 100, "_fields": "link"},
@@ -3807,7 +3824,30 @@ def run_cascade_funding(posted_links: set, posted_titles: set, posted_keywords: 
             posted_links.add(link)
             continue
         description = collect_paragraphs(detail, min_len=40) or title
-        source_url, source_label = find_original_source_link(detail, extra_skip_domains=("cascadefunding",))
+        # Дедлайн і сума стоять у «картці» (поле Closes, Max funding), а не в
+        # абзацах — без них допис виходив без дедлайну. Формат дати dd/mm/yyyy.
+        page_text = detail.get_text(" ", strip=True)
+        facts = []
+        mc = re.search(r"Closes\s*:?\s*(\d{1,2})/(\d{1,2})/(\d{4})", page_text)
+        if mc:
+            facts.append(f"Дедлайн подання: {int(mc.group(1)):02d}.{int(mc.group(2)):02d}.{mc.group(3)}.")
+        mm = re.search(r"Max funding per project\s*:?\s*([\d.,\s]+€)", page_text, re.IGNORECASE)
+        if mm:
+            facts.append(f"Максимальне фінансування на проєкт: {mm.group(1).strip()}.")
+        if facts:
+            description = " ".join(facts) + "\n\n" + description
+        # Посилання на подачу (кнопка Apply / платформа) важливіше за сайт організатора.
+        source_url = source_label = None
+        for a in detail.find_all("a", href=True):
+            href = a["href"]
+            if (re.search(r"apply|submit|application", a.get_text(" ", strip=True), re.IGNORECASE)
+                    and href.startswith("http") and "cascadefunding" not in href
+                    and not is_social_media_url(href) and not is_junk_source_url(href)):
+                source_url = href
+                source_label = urlparse(href).netloc.replace("www.", "") + " — подача заявки"
+                break
+        if not source_url:
+            source_url, source_label = find_original_source_link(detail, extra_skip_domains=("cascadefunding",))
         if not source_url:
             source_url, source_label = link, "Cascade Funding Hub — джерело"
         processed += 1
