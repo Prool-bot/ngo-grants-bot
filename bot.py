@@ -43,6 +43,14 @@ GEMINI_MODELS = [m.strip() for m in os.getenv(
 # CLOUDFLARE_MODELS (через кому).
 CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID")
 CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN")
+if CLOUDFLARE_ACCOUNT_ID and not re.fullmatch(r"[0-9a-fA-F]{32}", CLOUDFLARE_ACCOUNT_ID.strip()):
+    # Account ID — рівно 32 шістнадцяткові символи. Інакше (напр. у секрет
+    # вставили не те) кожен запит давав би 404 за зламаною адресою.
+    print("[AI] CLOUDFLARE_ACCOUNT_ID має неправильний формат (очікується 32 символи 0-9a-f) — "
+          "провайдера Cloudflare вимкнено. Перевірте секрет.")
+    CLOUDFLARE_ACCOUNT_ID = None
+elif CLOUDFLARE_ACCOUNT_ID:
+    CLOUDFLARE_ACCOUNT_ID = CLOUDFLARE_ACCOUNT_ID.strip()
 CLOUDFLARE_MODELS = [m.strip() for m in os.getenv(
     "CLOUDFLARE_MODELS", "@cf/google/gemma-4-26b-a4b-it,@cf/qwen/qwen3.8-27b").split(",") if m.strip()]
 _AI_PROVIDERS = {
@@ -1425,6 +1433,9 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         return _RetryOpportunity() if source_label.startswith("Google Alerts:") else _SkippedIrrelevant()
 
     main_link_label = ai.get("source_link_label") or source_label
+    if main_link_label.startswith("Google Alerts:"):
+        # Службова мітка черги («Google Alerts: домен») — читачу цікавий лише домен.
+        main_link_label = main_link_label.split(":", 1)[1].strip() + " — джерело"
     links_block = f"🔗 <a href=\"{link}\">{main_link_label}</a>"
     for l in (ai.get("extra_links") or []):
         url, label = l.get("url"), l.get("label")
