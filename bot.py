@@ -2389,6 +2389,26 @@ def run_tg_channel(username: str, channel_name: str,
             except Exception as e:
                 print(f"[@{username}] Глибший пошук джерела не вдався: {e}")
 
+        # Посилання з поста може вести на блог-статтю агенції/медіа про грант
+        # (напр. ye-consulting.agency/blog/…), а не на сторінку програми. Пробуємо
+        # знайти оголошення всередині статті; не вдалось — не видаємо статтю за
+        # першоджерело, лишаємо пост каналу.
+        if source_url and not is_social_media_url(source_url) and looks_like_article_url(source_url):
+            replacement = None
+            try:
+                own_domain = urlparse(source_url).netloc.lower().replace("www.", "")
+                art_page = fetch_html(source_url, timeout=30, retries=1)
+                if art_page:
+                    replacement = find_original_source_link(
+                        art_page, extra_skip_domains=(own_domain,), priority_only=True)
+            except Exception as e:
+                print(f"[@{username}] Пошук джерела в статті не вдався: {e}")
+            if replacement and replacement[0] and not looks_like_article_url(replacement[0]):
+                source_url, source_label = replacement
+            else:
+                print(f"[@{username}] Посилання схоже на статтю, а не оголошення — {source_url[:100]}; беру пост каналу")
+                source_url, source_label = None, None
+
         if not source_url:
             source_url, source_label = msg_url, f"{channel_name} — джерело"
 
@@ -3446,6 +3466,23 @@ def clean_tracking_params(url: str) -> str:
         return urlunparse(p._replace(query=urlencode(q)))
     except Exception:
         return url
+
+
+_ARTICLE_HOST_RE = re.compile(r"(consult|agency|agentur|media|journal|magazine|blog|news|press|times|digest|insight)", re.I)
+
+
+def looks_like_article_url(url: str) -> bool:
+    """Блог-стаття/новина консалтингової агенції чи медіа про грант, а не сторінка
+    самого оголошення: у шляху /blog(s)/, /article(s)/, /stati/ або хост схожий на
+    агенцію/медіа (consulting, agency, media, news…). Урядові/освітні домени не
+    чіпаємо — у них /news/ часто і є офіційне оголошення."""
+    p = urlparse(url)
+    host = (p.hostname or "").lower()
+    if host.endswith((".gov", ".gov.ua", ".edu", ".int", ".europa.eu")) or ".gov." in host:
+        return False
+    if re.search(r"/(blogs?|articles?|stati|stories|story|magazine)/", p.path.lower()):
+        return True
+    return bool(_ARTICLE_HOST_RE.search(host))
 
 
 def is_site_root(url: str) -> bool:
