@@ -1262,6 +1262,7 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
     сирими URL, які лише ПІСЛЯ резолюції збігаються — рання перевірка
     на сирому лінку (в самому циклі джерела) цього не ловить, звідси й
     були повтори того самого гранту з кількох українських джерел."""
+    link = clean_tracking_params(link)  # fbclid/utm_* не мають потрапляти в пост
     if link in posted_links:
         print(f"[{source_label}] Skipped (дубль після резолюції першоджерела): {title[:60]}")
         return _SkippedIrrelevant()
