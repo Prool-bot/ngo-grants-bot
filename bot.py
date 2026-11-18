@@ -7,7 +7,7 @@ from collections import deque
 from datetime import date
 import feedparser
 import requests
-from urllib.parse import urlparse, parse_qs, urljoin, parse_qsl, urlencode
+from urllib.parse import urlparse, parse_qs, urljoin, parse_qsl, urlencode, urlunparse
 from bs4 import BeautifulSoup
 
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -214,7 +214,9 @@ CASCADE_MAX_PER_RUN = 6  # щоб не з'їсти AI-квоту, якщо в а
 # на сторінку й шукає СПРАВЖНЄ джерело всередині, а не публікує сам блог
 # як джерело. Список поповнюється в міру виявлення нових таких сайтів.
 KNOWN_AGGREGATOR_DOMAINS = ("grant-radar.app", "grantradar.com.ua", "scientifyresearch.org", "biotecnika.com", "callfor.org", "fundsforngos", "opportunitiesradar", "globalsouthopportunities", "vacancyedu", "opportunitiesforyouth",
-                            "callfor.org", "opencallforartists", "callforentry", "artrabbit", "artconnect.com")
+                            "callfor.org", "opencallforartists", "callforentry", "artrabbit", "artconnect.com",
+                            "streamlyne", "opportunitytracker", "h-net.org", "triple-funds", "opportunitydesk",
+                            "scholars4dev", "youthop", "opportunitiesforafricans", "afterschoolafrica")
 
 # ---------------------------------------------------------------------------
 # ФІЛЬТРИ
@@ -1214,7 +1216,9 @@ def _strip_channel_promo(text):
 _FILLER_RE = re.compile(
     r"^(знайти|ознайомитись|ознайомтесь|перейти|перейдіть|дивіться|зверніться)\b"
     r"|детальні умови|форм[аиу] подання|за посиланням|на офіційн\w+ (сайті|сторінці)"
-    r"|надати документи, передбачені|^(сума|дедлайн|умови)[^.]{0,40}(не вказан|не зазначен)",
+    r"|надати документи, передбачені|джерело (містить|не містить)|у джерелі|текст джерела"
+    r"|не мають достатньо даних|інші згадані програми|^(примітка|зверніть увагу)[^.]{0,30}джерел"
+    r"|^(сума|дедлайн|умови)[^.]{0,40}(не вказан|не зазначен)",
     re.IGNORECASE)
 
 
@@ -3049,6 +3053,8 @@ def process_alert_candidate(url, item, queue, posted_links, posted_titles, poste
             return "expanded"
 
     visited = {url, official_url}
+    from_search = False
+    search_title = title
     for _ in range(3):
         route, linked_source = alert_page_route(official_url, page)
         if route == "direct":
@@ -3069,10 +3075,10 @@ def process_alert_candidate(url, item, queue, posted_links, posted_titles, poste
             if article:
                 linked_source, _ = find_original_source_link(article, KNOWN_AGGREGATOR_DOMAINS)
         if not linked_source:
-            search_title = title
             if host == "fundsforngos.org" or host.endswith(".fundsforngos.org"):
                 search_title = urlparse(url).path.rstrip("/").split("/")[-1].replace("-", " ")
             cached = item.get("search")
+            from_search = True
             if cached and cached.get("url"):
                 linked_source = cached["url"]
             elif cached and (date.today() - date.fromisoformat(cached["at"])).days < 7:
@@ -3087,9 +3093,15 @@ def process_alert_candidate(url, item, queue, posted_links, posted_titles, poste
             return "source_unresolved"
         if linked_source in posted_links:
             return "duplicate"
+        linked_source = clean_tracking_params(linked_source)
         visited.add(linked_source)
         official_url = linked_source
         page = fetch_html(official_url)
+        if from_search and not page_matches_call(page, search_title):
+            print(f"[Google Alerts] Знайдена пошуком сторінка не про цей конкурс, відкидаю: {official_url[:120]}")
+            item["search"] = {"at": date.today().isoformat(), "url": None}
+            return "source_unresolved"
+        from_search = False
     else:
         if alert_page_route(official_url, page)[0] != "direct":
             return "source_unresolved"
@@ -3413,6 +3425,49 @@ def web_search(query: str, purpose: str = "alerts", max_results: int = 8):
     return [], False
 
 
+_TRACKING_PARAMS = {"fbclid", "gclid", "mc_cid", "mc_eid", "ref", "ref_src", "igshid"}
+_CALL_WORDS_RE = re.compile(
+    r"\b(apply|application|applications|deadline|eligib\w*|submit\w*|call for|guidelines)\b|"
+    r"заявк|дедлайн|подання|кінцевий термін", re.I)
+_GENERIC_TITLE_WORDS = {"grant", "grants", "fund", "funds", "funding", "call", "open", "applications", "application",
+                        "program", "programme", "programs", "award", "awards", "fellowship", "launches", "announces",
+                        "opportunity", "support", "with", "from", "that", "this", "for", "the", "and", "into"}
+
+
+def clean_tracking_params(url: str) -> str:
+    """Прибирає utm_*/fbclid/gclid тощо (напр. utm_source=chatgpt.com), щоб у пості
+    не було службових міток і щоб одне посилання не рахувалось двічі."""
+    try:
+        p = urlparse(url)
+        if not p.query:
+            return url
+        q = [(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True)
+             if not k.lower().startswith("utm_") and k.lower() not in _TRACKING_PARAMS]
+        return urlunparse(p._replace(query=urlencode(q)))
+    except Exception:
+        return url
+
+
+def is_site_root(url: str) -> bool:
+    p = urlparse(url)
+    return p.path.strip("/") == "" and not p.query
+
+
+def page_matches_call(page, title: str) -> bool:
+    """Чи справді знайдена пошуком сторінка — про цей конкурс: у тексті є принаймні
+    половина «значущих» слів заголовка й ознаки оголошення (заявка/дедлайн/умови).
+    Захист від випадкових сторінок організації, загальних розділів і головних."""
+    if page is None:
+        return False
+    text = alert_official_text(page).lower()
+    words = {w for w in re.findall(r"[a-zа-яіїєґ0-9]{4,}", title.lower())} - _GENERIC_TITLE_WORDS
+    if not words:
+        return False
+    hit = sum(1 for w in words if w in text) / len(words)
+    calls = {m.group(0).lower() for m in _CALL_WORDS_RE.finditer(text)}
+    return hit >= 0.5 and len(calls) >= 2
+
+
 def search_source(title: str):
     """Коли сторінка агрегатора недоступна чи не містить посилання на
     першоджерело — шукаємо його ПО НАЗВІ: беремо перший результат не з
@@ -3433,8 +3488,9 @@ def search_source(title: str):
     for r in results:
         url = r["url"]
         rtitle = r["title"]
-        if not url:
+        if not url or is_site_root(clean_tracking_params(url)):
             continue
+        url = clean_tracking_params(url)
         netloc = urlparse(url).netloc.lower()
         if (any(d in netloc for d in KNOWN_AGGREGATOR_DOMAINS)
                 or any(d in netloc for d in ("developmentaid", "grantwatch", "devex", "opportunitydesk",
