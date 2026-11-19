@@ -2505,6 +2505,10 @@ def is_junk_source_url(url: str) -> bool:
     # «send — джерело» без жодного посилання (допис 3960).
     if "." not in netloc.split("@")[-1].split(":")[0]:
         return True
+    # Прямі файли-вкладення (форма заявки .docx/.xlsx, архів) — не сторінка конкурсу
+    # (допис 4028 вів на «Додаток А. Форма пропозиції.docx»).
+    if re.search(r"\.(docx?|xlsx?|pptx?|zip|rar)$", parsed.path.lower()):
+        return True
     return any(d in netloc for d in JUNK_SOURCE_DOMAINS)
 
 
@@ -4105,7 +4109,19 @@ def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: lis
                 description = title
             source_url, source_label = (find_original_source_link(page)
                                          if page else (None, None))
+            if source_url and source_url != link:
+                # Перше зовнішнє посилання зі статті часто веде на випадковий сайт,
+                # згаданий у тексті (допис 4032: головна сторінка школи замість
+                # програми «Контінентал»). Публікуємо лише якщо сторінка справді
+                # про цей конкурс; інакше пропускаємо кандидата.
+                src_page = fetch_html(source_url)
+                if is_site_root(source_url) or not page_matches_call(src_page, title):
+                    print(f"[AI-пошук] Посилання зі статті не підтверджує конкурс, пропускаю: {source_url[:100]}")
+                    continue
             if not source_url:
+                if looks_like_article_url(link):
+                    print(f"[AI-пошук] Лише стаття без першоджерела, пропускаю: {link[:100]}")
+                    continue
                 source_url, source_label = link, "AI-пошук — джерело"
             resp2 = build_and_send("🔎", title, source_url, description, source_label,
                                     posted_titles, posted_keywords, posted_links,
