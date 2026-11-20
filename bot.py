@@ -1317,6 +1317,11 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
         # вимогою каналу єдиним джерелом має бути першоджерело, а не ЗМІ.
         print(f"[{source_label}] Skipped (джерело — новинна стаття без офіційного посилання): {final_title[:60]}")
         return _SkippedIrrelevant()
+    if source_label.startswith("Google Alerts:") and looks_like_article_url(link):
+        # Допис 4048 (fadmagazine.com) і 4050 (austinchronicle.com/columns/…): першоджерелом
+        # стала стаття/колонка медіа — детермінована перевірка на додачу до source_is_news.
+        print(f"[{source_label}] Skipped (посилання — стаття/колонка медіа, не оголошення): {final_title[:60]}")
+        return _SkippedIrrelevant()
     if source_label.startswith("Google Alerts:"):
         duplicate_url = alert_archive_duplicate(link, final_title)
         if duplicate_url:
@@ -2394,6 +2399,10 @@ def run_tg_channel(username: str, channel_name: str,
         # (напр. ye-consulting.agency/blog/…), а не на сторінку програми. Пробуємо
         # знайти оголошення всередині статті; не вдалось — не видаємо статтю за
         # першоджерело, лишаємо пост каналу.
+        if source_url and not is_social_media_url(source_url) and is_site_root(source_url):
+            # Допис 4051: «portal.usf.com.ua/» — головна сторінка порталу, не конкурс.
+            print(f"[@{username}] Посилання — головна сторінка сайту, беру пост каналу: {source_url[:100]}")
+            source_url, source_label = None, None
         if source_url and not is_social_media_url(source_url) and looks_like_article_url(source_url):
             replacement = None
             try:
@@ -3485,7 +3494,7 @@ def looks_like_article_url(url: str) -> bool:
     host = (p.hostname or "").lower()
     if host.endswith((".gov", ".gov.ua", ".edu", ".int", ".europa.eu")) or ".gov." in host:
         return False
-    if re.search(r"/(blogs?|articles?|stati|stories|story|magazine)/", p.path.lower()):
+    if re.search(r"/(blogs?|articles?|stati|stories|story|magazine|columns?|opinions?|features?|lifestyle)/", p.path.lower()):
         return True
     return bool(_ARTICLE_HOST_RE.search(host))
 
