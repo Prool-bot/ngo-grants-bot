@@ -1446,8 +1446,10 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
     if main_link_label.startswith("Google Alerts:"):
         # Службова мітка черги («Google Alerts: домен») — читачу цікавий лише домен.
         main_link_label = main_link_label.split(":", 1)[1].strip() + " — джерело"
-    links_block = f"🔗 <a href=\"{link}\">{main_link_label}</a>"
-    for l in (ai.get("extra_links") or []):
+    main_url, main_link_label, extra_links = prefer_official_main(
+        link, main_link_label, ai.get("extra_links"), final_title)
+    links_block = f"🔗 <a href=\"{main_url}\">{main_link_label}</a>"
+    for l in extra_links:
         url, label = l.get("url"), l.get("label")
         if url and label:
             links_block += f"\n🔗 <a href=\"{url}\">{label}</a>"
@@ -3516,6 +3518,33 @@ def is_weak_source_url(url: str) -> bool:
         return True
     m = re.search(r"/(20\d\d)/\d{1,2}/", p.path)
     return bool(m and int(m.group(1)) < date.today().year - 1)
+
+
+def _host_matches_title(url: str, title: str) -> bool:
+    """Домен збігається з назвою організатора в заголовку (cureparkinsons.org.uk ↔
+    «Cure Parkinson's»): ознака офіційного сайту, а не каталогу грантів."""
+    host = (urlparse(url).hostname or "").lower().replace("www.", "")
+    parts = host.split(".")
+    core = parts[-3] if len(parts) >= 3 and len(parts[-2]) <= 3 else (parts[-2] if len(parts) >= 2 else host)
+    t = re.sub(r"[^a-zа-яіїєґ0-9]", "", (title or "").lower())
+    return len(core) >= 5 and core in t
+
+
+def prefer_official_main(link: str, label: str, extras: list, title: str):
+    """Основним посиланням має бути сторінка організатора. Якщо основне — каталог/
+    агрегатор/стаття (пост 4075: dementiaresearcher.nihr.ac.uk замість
+    cureparkinsons.org.uk), а серед додаткових є офіційніше, міняємо місцями;
+    каталог не лишаємо зовсім."""
+    extras = [e for e in (extras or []) if e.get("url") and e.get("label") and e["url"] != link]
+    def weak(u):
+        return is_weak_source_url(u) or looks_like_article_url(u)
+    best = next((e for e in extras if _host_matches_title(e["url"], title)), None)
+    if best is None and weak(link):
+        best = next((e for e in extras if not weak(e["url"])), None)
+    if best is not None and not _host_matches_title(link, title):
+        rest = [e for e in extras if e is not best and not weak(e["url"])]
+        return best["url"], best["label"], rest
+    return link, label, extras
 
 
 def is_site_root(url: str) -> bool:
