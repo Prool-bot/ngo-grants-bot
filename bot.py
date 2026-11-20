@@ -215,7 +215,7 @@ CASCADE_MAX_PER_RUN = 6  # щоб не з'їсти AI-квоту, якщо в а
 # як джерело. Список поповнюється в міру виявлення нових таких сайтів.
 KNOWN_AGGREGATOR_DOMAINS = ("grant-radar.app", "grantradar.com.ua", "scientifyresearch.org", "biotecnika.com", "callfor.org", "fundsforngos", "opportunitiesradar", "globalsouthopportunities", "vacancyedu", "opportunitiesforyouth",
                             "callfor.org", "opencallforartists", "callforentry", "artrabbit", "artconnect.com",
-                            "streamlyne", "opportunitytracker", "h-net.org", "triple-funds", "opportunitydesk",
+                            "wooloo.org", "streamlyne", "opportunitytracker", "h-net.org", "triple-funds", "opportunitydesk",
                             "scholars4dev", "youthop", "opportunitiesforafricans", "afterschoolafrica")
 
 # ---------------------------------------------------------------------------
@@ -2399,9 +2399,10 @@ def run_tg_channel(username: str, channel_name: str,
         # (напр. ye-consulting.agency/blog/…), а не на сторінку програми. Пробуємо
         # знайти оголошення всередині статті; не вдалось — не видаємо статтю за
         # першоджерело, лишаємо пост каналу.
-        if source_url and not is_social_media_url(source_url) and is_site_root(source_url):
-            # Допис 4051: «portal.usf.com.ua/» — головна сторінка порталу, не конкурс.
-            print(f"[@{username}] Посилання — головна сторінка сайту, беру пост каналу: {source_url[:100]}")
+        if source_url and not is_social_media_url(source_url) and (is_site_root(source_url) or is_weak_source_url(source_url)):
+            # Допис 4051: «portal.usf.com.ua/» — головна сторінка; 4069/4073 — форма заявки;
+            # 4072 — агрегатор; 4070 — стара сторінка 2022 року: не першоджерело.
+            print(f"[@{username}] Посилання — головна/форма/агрегатор/стара сторінка, беру пост каналу: {source_url[:100]}")
             source_url, source_label = None, None
         if source_url and not is_social_media_url(source_url) and looks_like_article_url(source_url):
             replacement = None
@@ -3497,6 +3498,24 @@ def looks_like_article_url(url: str) -> bool:
     if re.search(r"/(blogs?|articles?|stati|stories|story|magazine|columns?|opinions?|features?|lifestyle)/", p.path.lower()):
         return True
     return bool(_ARTICLE_HOST_RE.search(host))
+
+
+_FORM_HOST_RE = re.compile(r"(^|\.)(forms\.gle|typeform\.com|jotform\.com|airtable\.com|forms\.office\.com|"
+                           r"surveymonkey\.com|tally\.so|forms\.zohopublic\.com)$", re.I)
+
+
+def is_weak_source_url(url: str) -> bool:
+    """Посилання, яке не годиться як «першоджерело» допису: форма заявки (forms.gle,
+    typeform… — пости 4069, 4073), агрегатор оголошень (wooloo — 4072), або сторінка
+    зі старим роком у шляху (/2022/11/…, пост 4070 — минулорічна програма)."""
+    p = urlparse(url)
+    host = (p.hostname or "").lower()
+    if _FORM_HOST_RE.search(host) or (host == "docs.google.com" and "/forms/" in p.path):
+        return True
+    if any(d in host for d in KNOWN_AGGREGATOR_DOMAINS):
+        return True
+    m = re.search(r"/(20\d\d)/\d{1,2}/", p.path)
+    return bool(m and int(m.group(1)) < date.today().year - 1)
 
 
 def is_site_root(url: str) -> bool:
