@@ -215,7 +215,7 @@ CASCADE_MAX_PER_RUN = 6  # щоб не з'їсти AI-квоту, якщо в а
 # як джерело. Список поповнюється в міру виявлення нових таких сайтів.
 KNOWN_AGGREGATOR_DOMAINS = ("grant-radar.app", "grantradar.com.ua", "scientifyresearch.org", "biotecnika.com", "callfor.org", "fundsforngos", "opportunitiesradar", "globalsouthopportunities", "vacancyedu", "opportunitiesforyouth",
                             "callfor.org", "opencallforartists", "callforentry", "artrabbit", "artconnect.com",
-                            "wooloo.org", "streamlyne", "opportunitytracker", "h-net.org", "triple-funds", "opportunitydesk",
+                            "wooloo.org", "mushrooming.fi", "streamlyne", "opportunitytracker", "h-net.org", "triple-funds", "opportunitydesk",
                             "scholars4dev", "youthop", "opportunitiesforafricans", "afterschoolafrica")
 
 # ---------------------------------------------------------------------------
@@ -2401,7 +2401,9 @@ def run_tg_channel(username: str, channel_name: str,
         # (напр. ye-consulting.agency/blog/…), а не на сторінку програми. Пробуємо
         # знайти оголошення всередині статті; не вдалось — не видаємо статтю за
         # першоджерело, лишаємо пост каналу.
-        if source_url and not is_social_media_url(source_url) and (is_site_root(source_url) or is_weak_source_url(source_url)):
+        if source_url and not is_social_media_url(source_url) and (
+                (is_site_root(source_url) and not _host_matches_title(source_url, first_line + " " + text[:300]))
+                or is_weak_source_url(source_url)):
             # Допис 4051: «portal.usf.com.ua/» — головна сторінка; 4069/4073 — форма заявки;
             # 4072 — агрегатор; 4070 — стара сторінка 2022 року: не першоджерело.
             print(f"[@{username}] Посилання — головна/форма/агрегатор/стара сторінка, беру пост каналу: {source_url[:100]}")
@@ -3497,7 +3499,7 @@ def looks_like_article_url(url: str) -> bool:
     host = (p.hostname or "").lower()
     if host.endswith((".gov", ".gov.ua", ".edu", ".int", ".europa.eu")) or ".gov." in host:
         return False
-    if re.search(r"/(blogs?|articles?|stati|stories|story|magazine|columns?|opinions?|features?|lifestyle)/", p.path.lower()):
+    if re.search(r"/(blogs?|articles?|stati|stories|story|magazine|columns?|opinions?|features?|lifestyle|listings?)/", p.path.lower()):
         return True
     return bool(_ARTICLE_HOST_RE.search(host))
 
@@ -3524,10 +3526,9 @@ def _host_matches_title(url: str, title: str) -> bool:
     """Домен збігається з назвою організатора в заголовку (cureparkinsons.org.uk ↔
     «Cure Parkinson's»): ознака офіційного сайту, а не каталогу грантів."""
     host = (urlparse(url).hostname or "").lower().replace("www.", "")
-    parts = host.split(".")
-    core = parts[-3] if len(parts) >= 3 and len(parts[-2]) <= 3 else (parts[-2] if len(parts) >= 2 else host)
     t = re.sub(r"[^a-zа-яіїєґ0-9]", "", (title or "").lower())
-    return len(core) >= 5 and core in t
+    # будь-яка значуща мітка домену (у т.ч. піддомен: hansenleadershipinstitute.awardsplatform.com)
+    return any(len(p) >= 5 and p in t for p in host.split(".")[:-1])
 
 
 def prefer_official_main(link: str, label: str, extras: list, title: str):
