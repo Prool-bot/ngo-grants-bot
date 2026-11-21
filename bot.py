@@ -3518,6 +3518,13 @@ def is_weak_source_url(url: str) -> bool:
         return True
     if any(d in host for d in KNOWN_AGGREGATOR_DOMAINS):
         return True
+    # Загальне правило для невідомих хостів: адреса сама каже, що це форма заявки
+    # (/forms/, /form/, /apply-form, responsepage.aspx, /viewform), а не опис програми.
+    path_q = (p.path + "?" + p.query).lower()
+    if re.search(r"(/forms?/|/apply[-_]?form|/application[-_]?form|responsepage\.aspx|/viewform|/submit[-_]?form)", path_q):
+        return True
+    if re.match(r"forms?\d*\.", host):
+        return True
     m = re.search(r"/(20\d\d)/\d{1,2}/", p.path)
     return bool(m and int(m.group(1)) < date.today().year - 1)
 
