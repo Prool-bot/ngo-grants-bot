@@ -215,7 +215,7 @@ CASCADE_MAX_PER_RUN = 6  # щоб не з'їсти AI-квоту, якщо в а
 # як джерело. Список поповнюється в міру виявлення нових таких сайтів.
 KNOWN_AGGREGATOR_DOMAINS = ("grant-radar.app", "grantradar.com.ua", "scientifyresearch.org", "biotecnika.com", "callfor.org", "fundsforngos", "opportunitiesradar", "globalsouthopportunities", "vacancyedu", "opportunitiesforyouth",
                             "callfor.org", "opencallforartists", "callforentry", "artrabbit", "artconnect.com",
-                            "wooloo.org", "mushrooming.fi", "streamlyne", "opportunitytracker", "h-net.org", "triple-funds", "opportunitydesk",
+                            "wooloo.org", "mushrooming.fi", "opencallartist.com", "callforentry.org", "streamlyne", "opportunitytracker", "h-net.org", "triple-funds", "opportunitydesk",
                             "scholars4dev", "youthop", "opportunitiesforafricans", "afterschoolafrica")
 
 # ---------------------------------------------------------------------------
@@ -3504,7 +3504,7 @@ def looks_like_article_url(url: str) -> bool:
     return bool(_ARTICLE_HOST_RE.search(host))
 
 
-_FORM_HOST_RE = re.compile(r"(^|\.)(forms\.gle|typeform\.com|jotform\.com|airtable\.com|forms\.office\.com|"
+_FORM_HOST_RE = re.compile(r"(^|\.)(forms\.gle|typeform\.com|jotform\.com|airtable\.com|forms\.office\.com|forms\.cloud\.microsoft|forms\.microsoft\.com|forms\.fillout\.com|"
                            r"surveymonkey\.com|tally\.so|forms\.zohopublic\.com)$", re.I)
 
 
