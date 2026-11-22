@@ -215,7 +215,8 @@ CASCADE_MAX_PER_RUN = 6  # щоб не з'їсти AI-квоту, якщо в а
 # як джерело. Список поповнюється в міру виявлення нових таких сайтів.
 KNOWN_AGGREGATOR_DOMAINS = ("grant-radar.app", "grantradar.com.ua", "scientifyresearch.org", "biotecnika.com", "callfor.org", "fundsforngos", "opportunitiesradar", "globalsouthopportunities", "vacancyedu", "opportunitiesforyouth",
                             "callfor.org", "opencallforartists", "callforentry", "artrabbit", "artconnect.com",
-                            "wooloo.org", "mushrooming.fi", "opencallartist.com", "callforentry.org", "streamlyne", "opportunitytracker", "h-net.org", "triple-funds", "opportunitydesk",
+                            "wooloo.org", "mushrooming.fi", "jobleads.com", "jooble.org", "indeed.com", "glassdoor.com",
+                            "findaphd.com", "academicpositions.com", "scholarshipdb.net", "scholarshipportal.com", "opencallartist.com", "callforentry.org", "streamlyne", "opportunitytracker", "h-net.org", "triple-funds", "opportunitydesk",
                             "scholars4dev", "youthop", "opportunitiesforafricans", "afterschoolafrica")
 
 # ---------------------------------------------------------------------------
@@ -2446,6 +2447,12 @@ def run_tg_channel(username: str, channel_name: str,
             if response.status_code == 200:
                 save_posted_link(item_key)
                 posted_links.add(item_key)
+                # Запам'ятовуємо й РЕЗОЛЬВЛЕНЕ першоджерело, інакше той самий грант із
+                # іншого каналу (пости 4091/4092 «Це Крафт» з двох каналів за один
+                # прогін) не ловиться перевіркою дублів у build_and_send.
+                if source_url and source_url != msg_url and source_url not in posted_links:
+                    save_posted_link(source_url)
+                    posted_links.add(source_url)
             time.sleep(2)
         except Exception as e:
             print(f"[@{username}] ERROR {item_key}: {e}")
