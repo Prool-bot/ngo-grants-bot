@@ -1248,7 +1248,8 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
                     source_label: str, posted_titles: set, posted_keywords: list,
                     posted_links: set, deadline_hint: str = "", strict_fallback: bool = False,
                     template_fallback: bool = False,
-                    require_opportunity_words: bool = False) -> requests.Response:
+                    require_opportunity_words: bool = False,
+                    form_url: str = None) -> requests.Response:
     """Єдина точка виходу: AI-розбір на секції → фільтр релевантності →
     stage-2 дедуп на нормалізованому заголовку → збірка HTML-повідомлення →
     надсилання. Довгі секції (notes, критерії, вимоги) відкидаються першими,
@@ -1447,9 +1448,17 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
     if main_link_label.startswith("Google Alerts:"):
         # Службова мітка черги («Google Alerts: домен») — читачу цікавий лише домен.
         main_link_label = main_link_label.split(":", 1)[1].strip() + " — джерело"
+    if urlparse(link).netloc.lower() == "t.me":
+        # Основне посилання — пост каналу: підпис від ШІ («Форма подачі заявки»,
+        # «Реєстрація…») тут був би хибним (пости 4103/4104).
+        main_link_label = source_label
     main_url, main_link_label, extra_links = prefer_official_main(
         link, main_link_label, ai.get("extra_links"), final_title)
     links_block = f"🔗 <a href=\"{main_url}\">{main_link_label}</a>"
+    if form_url and form_url != main_url:
+        # Форма заявки — не першоджерело, але для курсів/програм це єдина дія для
+        # читача: лишаємо її другим рядком з чесним підписом.
+        links_block += f"\n📝 <a href=\"{form_url}\">Форма реєстрації / подачі заявки</a>"
     for l in extra_links:
         url, label = l.get("url"), l.get("label")
         if url and label:
@@ -2402,12 +2411,16 @@ def run_tg_channel(username: str, channel_name: str,
         # (напр. ye-consulting.agency/blog/…), а не на сторінку програми. Пробуємо
         # знайти оголошення всередині статті; не вдалось — не видаємо статтю за
         # першоджерело, лишаємо пост каналу.
+        form_url = None
         if source_url and not is_social_media_url(source_url) and (
                 (is_site_root(source_url) and not _host_matches_title(source_url, first_line + " " + text[:300]))
                 or is_weak_source_url(source_url)):
             # Допис 4051: «portal.usf.com.ua/» — головна сторінка; 4069/4073 — форма заявки;
             # 4072 — агрегатор; 4070 — стара сторінка 2022 року: не першоджерело.
             print(f"[@{username}] Посилання — головна/форма/агрегатор/стара сторінка, беру пост каналу: {source_url[:100]}")
+            if _FORM_HOST_RE.search(urlparse(source_url).hostname or "") or "/forms/" in source_url \
+                    or "responsepage" in source_url or "/viewform" in source_url:
+                form_url = source_url
             source_url, source_label = None, None
         if source_url and not is_social_media_url(source_url) and looks_like_article_url(source_url):
             replacement = None
@@ -2443,7 +2456,8 @@ def run_tg_channel(username: str, channel_name: str,
             response = build_and_send("📌", first_line, source_url, text,
                                        source_label,
                                        posted_titles, posted_keywords, posted_links,
-                                       deadline_hint=deadline, strict_fallback=strict_fallback)
+                                       deadline_hint=deadline, strict_fallback=strict_fallback,
+                                       form_url=form_url)
             if response.status_code == 200:
                 save_posted_link(item_key)
                 posted_links.add(item_key)
