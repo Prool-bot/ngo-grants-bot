@@ -2686,7 +2686,8 @@ def find_original_source_link(page, extra_skip_domains: tuple = (), priority_onl
         resolved = expand_shortlink(href)
         netloc = urlparse(resolved).netloc.lower()
         if (not netloc or any(d in netloc for d in skip_own) or is_social_media_url(resolved)
-                or is_ai_chat_share_url(resolved) or is_junk_source_url(resolved)):
+                or is_ai_chat_share_url(resolved) or is_junk_source_url(resolved)
+                or is_weak_source_url(resolved)):
             return None, None
         return resolved, netloc.replace("www.", "") + " — джерело"
 
@@ -2696,7 +2697,8 @@ def find_original_source_link(page, extra_skip_domains: tuple = (), priority_onl
             netloc = urlparse(href).netloc.lower()
             path = urlparse(href).path.lower()
             if (not netloc or any(d in netloc for d in skip_own) or is_social_media_url(href)
-                    or is_ai_chat_share_url(href) or is_junk_source_url(href)):
+                    or is_ai_chat_share_url(href) or is_junk_source_url(href)
+                    or is_weak_source_url(href)):
                 continue
             if path.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")):
                 # Пряме посилання на файл картинки — майже завжди це
@@ -2736,7 +2738,8 @@ def find_original_source_link(page, extra_skip_domains: tuple = (), priority_onl
             netloc = urlparse(href).netloc.lower()
             path = urlparse(href).path.lower()
             if (not netloc or any(d in netloc for d in skip_own) or is_social_media_url(href)
-                    or is_ai_chat_share_url(href) or is_junk_source_url(href)):
+                    or is_ai_chat_share_url(href) or is_junk_source_url(href)
+                    or is_weak_source_url(href)):
                 continue
             if path.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")):
                 continue
