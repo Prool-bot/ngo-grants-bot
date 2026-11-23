@@ -215,7 +215,8 @@ CASCADE_MAX_PER_RUN = 6  # щоб не з'їсти AI-квоту, якщо в а
 # як джерело. Список поповнюється в міру виявлення нових таких сайтів.
 KNOWN_AGGREGATOR_DOMAINS = ("grant-radar.app", "grantradar.com.ua", "scientifyresearch.org", "biotecnika.com", "callfor.org", "fundsforngos", "opportunitiesradar", "globalsouthopportunities", "vacancyedu", "opportunitiesforyouth",
                             "callfor.org", "opencallforartists", "callforentry", "artrabbit", "artconnect.com",
-                            "wooloo.org", "mushrooming.fi", "jobleads.com", "jooble.org", "indeed.com", "glassdoor.com",
+                            "wooloo.org", "xhbt.org", "artdeadline.com", "transartists.org", "onthemove.org", "resartis.org",
+                            "artistcommunities.org", "mushrooming.fi", "jobleads.com", "jooble.org", "indeed.com", "glassdoor.com",
                             "findaphd.com", "academicpositions.com", "scholarshipdb.net", "scholarshipportal.com", "opencallartist.com", "callforentry.org", "streamlyne", "opportunitytracker", "h-net.org", "triple-funds", "opportunitydesk",
                             "scholars4dev", "youthop", "opportunitiesforafricans", "afterschoolafrica")
 
