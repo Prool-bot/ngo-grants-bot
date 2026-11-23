@@ -3157,7 +3157,7 @@ def process_alert_candidate(url, item, queue, posted_links, posted_titles, poste
         visited.add(linked_source)
         official_url = linked_source
         page = fetch_html(official_url)
-        if from_search and not page_matches_call(page, search_title):
+        if from_search and not page_matches_call(page, search_title, official_url):
             print(f"[Google Alerts] Знайдена пошуком сторінка не про цей конкурс, відкидаю: {official_url[:120]}")
             item["search"] = {"at": date.today().isoformat(), "url": None}
             return "source_unresolved"
@@ -3581,19 +3581,40 @@ def is_site_root(url: str) -> bool:
     return p.path.strip("/") == "" and not p.query
 
 
-def page_matches_call(page, title: str) -> bool:
-    """Чи справді знайдена пошуком сторінка — про цей конкурс: у тексті є принаймні
-    половина «значущих» слів заголовка й ознаки оголошення (заявка/дедлайн/умови).
-    Захист від випадкових сторінок організації, загальних розділів і головних."""
+def page_matches_call(page, title: str, url: str = "") -> bool:
+    """Чи справді знайдена сторінка — про цей конкурс: у тексті є ознаки оголошення
+    (заявка/дедлайн/умови) і достатня частина «значущих» слів заголовка.
+    Захист від випадкових сторінок організації, загальних розділів і головних.
+    Враховує: різні апострофи (пʼята/п'ята), різну мову заголовка й сторінки
+    (укр. заголовок про DIV Fund ↔ англ. сторінка: порівнюємо латинські слова й
+    числа), офіційні домени та домен, що збігається з назвою організатора."""
     if page is None:
         return False
-    text = alert_official_text(page).lower()
-    words = {w for w in re.findall(r"[a-zа-яіїєґ0-9]{4,}", title.lower())} - _GENERIC_TITLE_WORDS
+    norm = lambda x: re.sub(r"[\u02bc'’`ʼ]", "", x.lower())
+    text = norm(alert_official_text(page))
+    t = norm(title)
+    calls = {m.group(0).lower() for m in _CALL_WORDS_RE.finditer(text)}
+    if len(calls) < 2:
+        return False
+    words = {w for w in re.findall(r"[a-zа-яіїєґ0-9]{4,}", t)} - _GENERIC_TITLE_WORDS
     if not words:
         return False
+    cyr = lambda x: len(re.findall(r"[а-яіїєґ]", x))
+    lat = lambda x: len(re.findall(r"[a-z]", x))
+    cross_lang = (cyr(t) > lat(t)) != (cyr(text) > lat(text))
+    if cross_lang:
+        # різні мови: латинські слова (назви фондів/програм) і числа (суми, роки)
+        toks = {w for w in re.findall(r"[a-z]{3,}", t)} - _GENERIC_TITLE_WORDS
+        toks |= {re.sub(r"\D", "", n) for n in re.findall(r"\d[\d\s.,]*\d", t) if len(re.sub(r"\D", "", n)) >= 3}
+        digits_text = re.sub(r"[\s.,]", "", text)
+        if toks:
+            hit = sum(1 for w in toks if w in text or (w.isdigit() and w in digits_text)) / len(toks)
+            return hit >= 0.5
     hit = sum(1 for w in words if w in text) / len(words)
-    calls = {m.group(0).lower() for m in _CALL_WORDS_RE.finditer(text)}
-    return hit >= 0.5 and len(calls) >= 2
+    host = (urlparse(url).hostname or "").lower() if url else ""
+    trusted = bool(url) and (_host_matches_title(url, title) or any(
+        z in host for z in (".gov", ".edu", ".europa.eu", ".int", ".org.ua", ".fund")))
+    return hit >= (0.3 if trusted else 0.5)
 
 
 def search_source(title: str):
@@ -4201,7 +4222,7 @@ def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: lis
                 # програми «Контінентал»). Публікуємо лише якщо сторінка справді
                 # про цей конкурс; інакше пропускаємо кандидата.
                 src_page = fetch_html(source_url)
-                if is_site_root(source_url) or not page_matches_call(src_page, title):
+                if is_site_root(source_url) or not page_matches_call(src_page, title, source_url):
                     print(f"[AI-пошук] Посилання зі статті не підтверджує конкурс, пропускаю: {source_url[:100]}")
                     continue
             if not source_url:
