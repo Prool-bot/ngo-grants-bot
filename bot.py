@@ -2440,6 +2440,12 @@ def run_tg_channel(username: str, channel_name: str,
                 source_url, source_label = None, None
 
         if not source_url:
+            try:
+                source_url, source_label = find_validated_source_by_search(first_line, text)
+            except Exception as e:
+                print(f"[@{username}] TG-пошук першоджерела не вдався: {e}")
+                source_url, source_label = None, None
+        if not source_url:
             source_url, source_label = msg_url, f"{channel_name} — джерело"
 
         if is_cross_channel_digest_repost(text, source_url):
@@ -3651,6 +3657,33 @@ def search_source(title: str):
         if overlap >= 0.5:
             return url, netloc.replace("www.", "") + " — джерело", r["content"], True
     return None, None, None, True
+
+
+TG_SEARCH_MAX_PER_RUN = int(os.environ.get("TG_SEARCH_MAX_PER_RUN", "6"))
+_tg_search_used = 0
+
+
+def find_validated_source_by_search(title: str, text: str = ""):
+    """Для поста TG-каналу без придатного першоджерела (лише форма/агрегатор/нічого):
+    шукаємо сторінку організатора по заголовку й перевіряємо, що вона справді про цей
+    конкурс (page_matches_call). Інакше (None, None) — тоді лишається пост каналу.
+    Ліміт TG_SEARCH_MAX_PER_RUN пошуків за прогін, щоб не їсти квоту."""
+    global _tg_search_used
+    if _tg_search_used >= TG_SEARCH_MAX_PER_RUN or not title:
+        return None, None
+    if not re.search(r"грант|конкурс|програм|заявк|стипенд|дедлайн|фінансув|grant|call|apply|deadline",
+                     (title + " " + text[:400]).lower()):
+        return None, None
+    _tg_search_used += 1
+    url, label, _snippet, performed = search_source(title[:200])
+    if not url:
+        return None, None
+    page = fetch_html(url)
+    if not page_matches_call(page, title, url):
+        print(f"[TG-пошук] Знайдена сторінка не підтверджує пост, лишаю канал: {url[:100]}")
+        return None, None
+    print(f"[TG-пошук] Знайдено першоджерело: {url[:100]}")
+    return url, label
 
 
 # ---------------------------------------------------------------------------
