@@ -3498,7 +3498,7 @@ def web_search(query: str, purpose: str = "alerts", max_results: int = 8):
 _TRACKING_PARAMS = {"fbclid", "gclid", "mc_cid", "mc_eid", "ref", "ref_src", "igshid"}
 _CALL_WORDS_RE = re.compile(
     r"\b(apply|application|applications|deadline|eligib\w*|submit\w*|call for|guidelines)\b|"
-    r"заявк|дедлайн|подання|кінцевий термін", re.I)
+    r"заяв|реєстрац|подач|подання|дедлайн|кінцевий термін|крайній термін|умови участі|критері", re.I)
 _GENERIC_TITLE_WORDS = {"grant", "grants", "fund", "funds", "funding", "call", "open", "applications", "application",
                         "program", "programme", "programs", "award", "awards", "fellowship", "launches", "announces",
                         "opportunity", "support", "with", "from", "that", "this", "for", "the", "and", "into"}
@@ -3692,7 +3692,8 @@ def find_validated_source_by_search(title: str, text: str = ""):
     global _tg_search_used
     if _tg_search_used >= TG_SEARCH_MAX_PER_RUN or not title:
         return None, None
-    if not re.search(r"грант|конкурс|програм|заявк|стипенд|дедлайн|фінансув|grant|call|apply|deadline",
+    if not re.search(r"грант|конкурс|програм|заявк|стипенд|дедлайн|фінансув|тренінг|навчан|семінар|хакатон|"
+                     r"воркшоп|вебінар|школ[аиу]|курс|grant|call|apply|deadline|training|workshop|hackathon|seminar",
                      (title + " " + text[:400]).lower()):
         return None, None
     _tg_search_used += 1
