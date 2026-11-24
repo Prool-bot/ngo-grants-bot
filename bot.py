@@ -216,7 +216,7 @@ CASCADE_MAX_PER_RUN = 6  # щоб не з'їсти AI-квоту, якщо в а
 KNOWN_AGGREGATOR_DOMAINS = ("grant-radar.app", "grantradar.com.ua", "scientifyresearch.org", "biotecnika.com", "callfor.org", "fundsforngos", "opportunitiesradar", "globalsouthopportunities", "vacancyedu", "opportunitiesforyouth",
                             "callfor.org", "opencallforartists", "callforentry", "artrabbit", "artconnect.com",
                             "wooloo.org", "xhbt.org", "artdeadline.com", "transartists.org", "onthemove.org", "resartis.org",
-                            "artistcommunities.org", "mushrooming.fi", "jobleads.com", "jooble.org", "indeed.com", "glassdoor.com",
+                            "artistcommunities.org", "mushrooming.fi", "jobleads.com", "jobindex.dk", "jobs.ac.uk", "academictransfer.com", "jobbnorge.no", "jooble.org", "indeed.com", "glassdoor.com",
                             "findaphd.com", "academicpositions.com", "scholarshipdb.net", "scholarshipportal.com", "opencallartist.com", "callforentry.org", "streamlyne", "opportunitytracker", "h-net.org", "triple-funds", "opportunitydesk",
                             "scholars4dev", "youthop", "opportunitiesforafricans", "afterschoolafrica")
 
@@ -3627,23 +3627,27 @@ def page_matches_call(page, title: str, url: str = "") -> bool:
     return hit >= (0.3 if trusted else 0.5)
 
 
-def search_source(title: str):
-    """Коли сторінка агрегатора недоступна чи не містить посилання на
-    першоджерело — шукаємо його ПО НАЗВІ: беремо перший результат не з
-    агрегатора/соцмережі/службових доменів, чия назва помітно збігається
-    зі словами заголовка. Повертає (url, label, snippet, performed);
-    performed=False означає, що пошук не виконувався (див. web_search)."""
+_TG_MIRROR_HOSTS = ("tgch.nl", "tgstat", "telemetr", "tlgrm", "teleteka", "combot", "telegra.ph", "t.me",
+                    "telegram.me", "tgram.io", "tg.i-c-a.su")
+
+
+def search_source_candidates(title: str, limit: int = 1):
+    """Пошук першоджерела по назві: до `limit` результатів не з агрегатора/соцмережі/
+    дзеркала Telegram/службових доменів, чия назва помітно збігається зі словами
+    заголовка. Повертає ([(url, label, snippet)], performed); performed=False означає,
+    що пошук не виконувався (див. web_search)."""
     if not title:
-        return None, None, None, False
+        return [], False
     results, performed = web_search(title, purpose="alerts")
     if not performed:
-        return None, None, None, False
+        return [], False
 
     def words(t):
         return {w for w in re.findall(r"[a-zа-яіїєґ0-9]{4,}", t.lower())}
     wanted = words(title)
+    out = []
     if not wanted:
-        return None, None, None, True
+        return out, True
     for r in results:
         url = r["url"]
         rtitle = r["title"]
@@ -3652,14 +3656,27 @@ def search_source(title: str):
         url = clean_tracking_params(url)
         netloc = urlparse(url).netloc.lower()
         if (any(d in netloc for d in KNOWN_AGGREGATOR_DOMAINS)
+                or any(d in netloc for d in _TG_MIRROR_HOSTS)
                 or any(d in netloc for d in ("developmentaid", "grantwatch", "devex", "opportunitydesk",
                                               "scholarshipdb", "mastersportal", "youtube.com", "reddit.com"))
-                or is_social_media_url(url) or is_junk_source_url(url) or is_ai_chat_share_url(url)):
+                or is_social_media_url(url) or is_junk_source_url(url) or is_ai_chat_share_url(url)
+                or is_weak_source_url(url)):
             continue
         overlap = len(wanted & words(rtitle + " " + r["content"][:300])) / len(wanted)
         if overlap >= 0.5:
-            return url, netloc.replace("www.", "") + " — джерело", r["content"], True
-    return None, None, None, True
+            out.append((url, netloc.replace("www.", "") + " — джерело", r["content"]))
+            if len(out) >= limit:
+                break
+    return out, True
+
+
+def search_source(title: str):
+    """Перший придатний результат пошуку: (url, label, snippet, performed)."""
+    found, performed = search_source_candidates(title, 1)
+    if not found:
+        return None, None, None, performed
+    url, label, snippet = found[0]
+    return url, label, snippet, True
 
 
 TG_SEARCH_MAX_PER_RUN = int(os.environ.get("TG_SEARCH_MAX_PER_RUN", "6"))
@@ -3669,7 +3686,8 @@ _tg_search_used = 0
 def find_validated_source_by_search(title: str, text: str = ""):
     """Для поста TG-каналу без придатного першоджерела (лише форма/агрегатор/нічого):
     шукаємо сторінку організатора по заголовку й перевіряємо, що вона справді про цей
-    конкурс (page_matches_call). Інакше (None, None) — тоді лишається пост каналу.
+    конкурс (page_matches_call). Пробуємо до 3 результатів (дзеркала Telegram,
+    агрегатори й форми вже відсіяні). Інакше (None, None) — тоді лишається пост каналу.
     Ліміт TG_SEARCH_MAX_PER_RUN пошуків за прогін, щоб не їсти квоту."""
     global _tg_search_used
     if _tg_search_used >= TG_SEARCH_MAX_PER_RUN or not title:
@@ -3678,20 +3696,20 @@ def find_validated_source_by_search(title: str, text: str = ""):
                      (title + " " + text[:400]).lower()):
         return None, None
     _tg_search_used += 1
-    url, label, _snippet, performed = search_source(title[:200])
-    if not url:
-        return None, None
-    page = fetch_html(url)
-    if not page_matches_call(page, title, url):
-        print(f"[TG-пошук] Знайдена сторінка не підтверджує пост, лишаю канал: {url[:100]}")
-        return None, None
-    print(f"[TG-пошук] Знайдено першоджерело: {url[:100]}")
-    return url, label
+    found, _performed = search_source_candidates(title[:200], limit=3)
+    for url, label, _snippet in found:
+        page = fetch_html(url)
+        if page_matches_call(page, title, url):
+            print(f"[TG-пошук] Знайдено першоджерело: {url[:100]}")
+            return url, label
+        print(f"[TG-пошук] Сторінка не підтверджує пост, наступний кандидат: {url[:100]}")
+    return None, None
 
 
 # ---------------------------------------------------------------------------
 # COLOSSAL (щомісячна збірка можливостей для митців)
 # ---------------------------------------------------------------------------
+
 
 def process_colossal_digest(digest_url: str, posted_links: set,
                              posted_titles: set, posted_keywords: list) -> None:
