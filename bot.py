@@ -3692,7 +3692,8 @@ def find_validated_source_by_search(title: str, text: str = ""):
     global _tg_search_used
     if _tg_search_used >= TG_SEARCH_MAX_PER_RUN or not title:
         return None, None
-    if not re.search(r"грант|конкурс|програм|заявк|стипенд|дедлайн|фінансув|grant|call|apply|deadline",
+    if not re.search(r"грант|конкурс|програм|заявк|стипенд|дедлайн|фінансув|тренінг|навчан|семінар|хакатон|"
+                     r"воркшоп|вебінар|школ[аиу]|курс|grant|call|apply|deadline|training|workshop|hackathon|seminar",
                      (title + " " + text[:400]).lower()):
         return None, None
     _tg_search_used += 1
