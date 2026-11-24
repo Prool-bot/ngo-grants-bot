@@ -3498,7 +3498,7 @@ def web_search(query: str, purpose: str = "alerts", max_results: int = 8):
 _TRACKING_PARAMS = {"fbclid", "gclid", "mc_cid", "mc_eid", "ref", "ref_src", "igshid"}
 _CALL_WORDS_RE = re.compile(
     r"\b(apply|application|applications|deadline|eligib\w*|submit\w*|call for|guidelines)\b|"
-    r"заявк|дедлайн|подання|кінцевий термін", re.I)
+    r"заяв|реєстрац|подач|подання|дедлайн|кінцевий термін|крайній термін|умови участі|критері", re.I)
 _GENERIC_TITLE_WORDS = {"grant", "grants", "fund", "funds", "funding", "call", "open", "applications", "application",
                         "program", "programme", "programs", "award", "awards", "fellowship", "launches", "announces",
                         "opportunity", "support", "with", "from", "that", "this", "for", "the", "and", "into"}
