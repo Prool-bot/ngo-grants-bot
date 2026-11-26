@@ -3,6 +3,7 @@ import re
 import json
 import time
 import hashlib
+import html
 from collections import deque
 from datetime import date
 import feedparser
@@ -4200,6 +4201,190 @@ def _mark_ai_discovery_ran() -> None:
         f.write(today)
 
 
+# ── EU Funding & Tenders Portal (SEDIA) + моніторинг сторінок донорів ──────
+EU_PORTAL_SEARCH_URL = "https://api.tech.ec.europa.eu/search-api/prod/rest/search"
+EU_PORTAL_TOPIC_URL = ("https://ec.europa.eu/info/funding-tenders/opportunities/"
+                       "portal/screen/opportunities/topic-details/")
+EU_PORTAL_MAX_PER_RUN = 4
+# Програми, релевантні для НУО/культури/освіти/молоді (префікс identifier).
+EU_PORTAL_PROGRAMMES = ("ERASMUS", "CREA", "CERV", "LIFE", "MSCA", "ESC", "EUROPE-CREATIVE",
+                        "DIGITAL", "HORIZON-CL2", "EUAF", "AMIF", "UCPM")
+DONOR_MAX_PER_RUN = 4
+DONOR_MAX_PER_DONOR = 2
+DONOR_PAGES = [
+    # (назва, сторінка зі списком, мітка, маска URL деталі (regex))
+    ("Український інститут", "https://ui.org.ua/en/open-calls/", r"/open-calls?/[\w\-]+|/en/[\w\-]+"),
+    ("Представництво ЄС в Україні", "https://www.eeas.europa.eu/delegations/ukraine/calls-proposals_en", r"calls?-|proposals|funding|grant"),
+    ("Рада Європи — Київ", "https://www.coe.int/en/web/kyiv/call-for-proposals-grants", r"call|grant|proposal|tender"),
+    ("Вишеградський фонд", "https://www.visegradfund.org/apply/grants/", r"/apply/grants/[\w\-]+|/apply/"),
+    ("EEA & Norway Grants", "https://eeagrants.org/archive?type=open-call", r"/open-call|/archive/"),
+    ("NED", "https://www.ned.org/apply-for-grant/", r"grant|apply|funding"),
+    ("UNDEF", "https://www.un.org/democracyfund/apply-funding", r"apply|funding|call"),
+    ("EU Neighbours East", "https://euneighbourseast.eu/opportunities/", r"/opportunit|/news/|call|grant"),
+    ("British Council Ukraine", "https://www.britishcouncil.org.ua/en/programmes/", r"programme|grant|call|fund"),
+    ("Goethe-Institut Ukraine", "https://www.goethe.de/ins/ua/uk/kul/foe.html", r"foe|foerder|grant|call|fund"),
+]
+_DONOR_ANCHOR_RE = re.compile(
+    r"call for|open call|grant|funding|apply|application|proposal|fellowship|scholarship|"
+    r"конкурс|грант|заявк|стипенд|фінансув|підтримк", re.IGNORECASE)
+
+
+def _eu_portal_value(meta: dict, key: str) -> str:
+    """Поля SEDIA повертає як списки рядків — беремо перше непорожнє."""
+    v = (meta or {}).get(key)
+    if isinstance(v, list):
+        v = next((x for x in v if x), "")
+    return str(v or "").strip()
+
+
+def run_eu_funding_portal(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
+    """EU Funding & Tenders Portal — публічний пошуковий API (без ключа).
+    Беремо відкриті/майбутні топіки програм ЄС 2021–2027. Формат запиту й
+    відповіді не перевірений з пісочниці: парсимо обережно і логуємо ключі
+    відповіді, щоб після першого прогону підправити."""
+    query = {"bool": {"must": [
+        {"terms": {"type": ["1", "2", "8"]}},
+        {"terms": {"status": ["31094501", "31094502"]}},
+        {"term": {"programmePeriod": "2021 - 2027"}},
+    ]}}
+    results = []
+    for page in (1, 2):
+        try:
+            r = requests.post(
+                EU_PORTAL_SEARCH_URL,
+                params={"apiKey": "SEDIA", "text": "***", "pageSize": 100, "pageNumber": page},
+                files={"query": (None, json.dumps(query), "application/json"),
+                       "sort": (None, json.dumps({"order": "DESC", "field": "startDate"}), "application/json"),
+                       "languages": (None, json.dumps(["en"]), "application/json")},
+                timeout=60, headers={"User-Agent": "Mozilla/5.0"})
+            if r.status_code != 200:
+                print(f"[EU Portal] HTTP {r.status_code}: {r.text[:200]}")
+                break
+            data = r.json()
+            if page == 1:
+                print(f"[EU Portal] ключі відповіді: {list(data.keys())[:10]}, всього: {data.get('totalResults')}")
+            got = data.get("results") or []
+            results.extend(got)
+            if len(got) < 100:
+                break
+        except Exception as e:
+            print(f"[EU Portal] помилка запиту: {type(e).__name__}: {e}")
+            break
+    if results:
+        print(f"[EU Portal] ключі metadata першого запису: {list((results[0].get('metadata') or {}).keys())[:25]}")
+    print(f"[EU Portal] Отримано {len(results)} топіків")
+
+    processed = already = 0
+    for res in results:
+        meta = res.get("metadata") or {}
+        ident = _eu_portal_value(meta, "identifier") or _eu_portal_value(meta, "reference")
+        if not ident or not ident.upper().startswith(EU_PORTAL_PROGRAMMES):
+            continue
+        link = EU_PORTAL_TOPIC_URL + ident
+        if link in posted_links or link.lower() in posted_links:
+            already += 1
+            continue
+        if processed >= EU_PORTAL_MAX_PER_RUN:
+            break
+        title = (_eu_portal_value(meta, "title") or res.get("title") or res.get("summary") or ident)
+        title = re.sub(r"<[^>]+>", "", str(title)).strip()
+        if is_excluded(title):
+            save_posted_link(link)
+            posted_links.add(link)
+            continue
+        desc_raw = (_eu_portal_value(meta, "descriptionByte") or _eu_portal_value(meta, "description")
+                    or _eu_portal_value(meta, "destinationDescription") or res.get("content") or "")
+        desc = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html.unescape(str(desc_raw)))).strip()[:2500]
+        facts = [f"Ідентифікатор топіка: {ident}."]
+        dl = _eu_portal_value(meta, "deadlineDate")
+        if dl:
+            facts.append(f"Дедлайн подання: {dl[:10]}.")
+        st = _eu_portal_value(meta, "startDate")
+        if st:
+            facts.append(f"Старт прийому заявок: {st[:10]}.")
+        budget = _eu_portal_value(meta, "budgetOverview")
+        if budget:
+            facts.append("Бюджет (за даними порталу): " + re.sub(r"<[^>]+>", " ", budget)[:300] + ".")
+        description = " ".join(facts) + "\n\n" + (desc or title)
+        processed += 1
+        try:
+            resp = build_and_send("🇪🇺", title, link, description,
+                                   "EU Funding & Tenders Portal — офіційний топік",
+                                   posted_titles, posted_keywords, posted_links, strict_fallback=True)
+            if resp.status_code == 200:
+                save_posted_link(link)
+                posted_links.add(link)
+        except Exception as e:
+            print(f"[EU Portal] ERROR {ident}: {e}")
+    print(f"[EU Portal] Підсумок: {processed} оброблено, {already} вже було раніше")
+
+
+def run_donor_pages(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
+    """Моніторинг офіційних сторінок донорів: беремо з головної сторінки
+    списку посилання, схожі на оголошення про конкурс, і публікуємо ті, чия
+    сторінка справді схожа на оголошення (page_matches_call). Структури
+    сайтів не перевірені з пісочниці — логуємо HTTP-статус і кількість
+    кандидатів по кожному донору, щоб виправити URL після першого прогону."""
+    processed = 0
+    for donor, list_url, pattern in DONOR_PAGES:
+        if processed >= DONOR_MAX_PER_RUN:
+            break
+        page = fetch_html(list_url)
+        if not page:
+            print(f"[Donors] {donor}: сторінку не отримано ({list_url})")
+            continue
+        host = urlparse(list_url).netloc.replace("www.", "")
+        cands, seen = [], set()
+        for a in page.find_all("a", href=True):
+            text = a.get_text(" ", strip=True)
+            href = urljoin(list_url, a["href"]).split("#")[0]
+            if href in seen or not href.startswith("http") or href.rstrip("/") == list_url.rstrip("/"):
+                continue
+            if urlparse(href).netloc.replace("www.", "") != host:
+                continue
+            if len(text) < 15 or not _DONOR_ANCHOR_RE.search(text):
+                continue
+            if not re.search(pattern, href, re.IGNORECASE):
+                continue
+            seen.add(href)
+            cands.append((text, clean_tracking_params(href)))
+        new = [c for c in cands if c[1] not in posted_links]
+        print(f"[Donors] {donor}: кандидатів {len(cands)}, нових {len(new)}")
+        per_donor = 0
+        for text, link in new:
+            if per_donor >= DONOR_MAX_PER_DONOR or processed >= DONOR_MAX_PER_RUN:
+                break
+            detail = fetch_html(link)
+            if not detail:
+                continue
+            h1 = detail.find("h1")
+            title = h1.get_text(" ", strip=True) if h1 else text
+            if is_excluded(title) or is_excluded(text):
+                save_posted_link(link)
+                posted_links.add(link)
+                continue
+            if not page_matches_call(detail, title, link):
+                print(f"[Donors] {donor}: не схоже на оголошення — {link}")
+                save_posted_link(link)
+                posted_links.add(link)
+                continue
+            description = collect_paragraphs(detail, min_len=40) or title
+            deadline = extract_deadline(detail.get_text(" ", strip=True))
+            if deadline:
+                description = f"Дедлайн подання: {deadline}.\n\n" + description
+            per_donor += 1
+            processed += 1
+            try:
+                resp = build_and_send("🌍", title, link, description, f"{donor} — офіційна сторінка",
+                                       posted_titles, posted_keywords, posted_links, strict_fallback=True)
+                if resp.status_code == 200:
+                    save_posted_link(link)
+                    posted_links.add(link)
+            except Exception as e:
+                print(f"[Donors] ERROR {link}: {e}")
+    print(f"[Donors] Підсумок: {processed} оброблено")
+
+
 def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: list) -> None:
     """Раз на день Tavily (окремий пошуковий API, 1000 безкоштовних
     запитів/міс, без картки) шукає нові грантові можливості, які могли
@@ -4397,6 +4582,8 @@ def main():
                       posted_titles, posted_keywords, strict_fallback=True)
     run_granthub(posted_links, posted_titles, posted_keywords)
     run_cascade_funding(posted_links, posted_titles, posted_keywords)
+    run_eu_funding_portal(posted_links, posted_titles, posted_keywords)
+    run_donor_pages(posted_links, posted_titles, posted_keywords)
     run_ai_discovery(posted_links, posted_titles, posted_keywords)
     # run_undp_ukraine() вимкнено: undp.org захищений WAF (Cloudflare/Akamai),
     # що блокує запити з хмарних IP GitHub Actions незалежно від заголовків —
