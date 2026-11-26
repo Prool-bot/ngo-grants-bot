@@ -4213,17 +4213,22 @@ DONOR_MAX_PER_RUN = 4
 DONOR_MAX_PER_DONOR = 2
 DONOR_PAGES = [
     # (назва, сторінка зі списком, мітка, маска URL деталі (regex))
-    ("Український інститут", "https://ui.org.ua/en/open-calls/", r"/open-calls?/[\w\-]+|/en/[\w\-]+"),
-    ("Представництво ЄС в Україні", "https://www.eeas.europa.eu/delegations/ukraine/calls-proposals_en", r"calls?-|proposals|funding|grant"),
+    ("Український інститут", "https://ui.org.ua/en/", r"open-call|grant|programme|opportunit"),
+    ("Представництво ЄС в Україні", "https://www.eeas.europa.eu/delegations/ukraine/news_en", r"call|proposal|funding|grant"),
     ("Рада Європи — Київ", "https://www.coe.int/en/web/kyiv/call-for-proposals-grants", r"call|grant|proposal|tender"),
     ("Вишеградський фонд", "https://www.visegradfund.org/apply/grants/", r"/apply/grants/[\w\-]+|/apply/"),
     ("EEA & Norway Grants", "https://eeagrants.org/archive?type=open-call", r"/open-call|/archive/"),
     ("NED", "https://www.ned.org/apply-for-grant/", r"grant|apply|funding"),
-    ("UNDEF", "https://www.un.org/democracyfund/apply-funding", r"apply|funding|call"),
+    ("UNDEF", "https://www.un.org/democracyfund/en/apply-for-funding", r"apply|funding|call"),
     ("EU Neighbours East", "https://euneighbourseast.eu/opportunities/", r"/opportunit|/news/|call|grant"),
     ("British Council Ukraine", "https://www.britishcouncil.org.ua/en/programmes/", r"programme|grant|call|fund"),
     ("Goethe-Institut Ukraine", "https://www.goethe.de/ins/ua/uk/kul/foe.html", r"foe|foerder|grant|call|fund"),
 ]
+# Топіки порталу, адресовані іншим регіонам світу: для України не підходять.
+_EU_NON_UA_REGION_RE = re.compile(
+    r"africa|mediterranean|maghreb|middle east|gulf|asia|pacific|caribbean|latin america|"
+    r"western balkans|sub-saharan|indo-pacific|\bacp\b|south[- ]east|central america|andean", re.IGNORECASE)
+_EU_UA_OK_RE = re.compile(r"ukrain|eastern partnership|neighbourhood east|eastern neighbour", re.IGNORECASE)
 _DONOR_ANCHOR_RE = re.compile(
     r"call for|open call|grant|funding|apply|application|proposal|fellowship|scholarship|"
     r"конкурс|грант|заявк|стипенд|фінансув|підтримк", re.IGNORECASE)
@@ -4244,7 +4249,7 @@ def run_eu_funding_portal(posted_links: set, posted_titles: set, posted_keywords
     відповіді, щоб після першого прогону підправити."""
     query = {"bool": {"must": [
         {"terms": {"type": ["1", "2", "8"]}},
-        {"terms": {"status": ["31094501", "31094502"]}},
+        {"terms": {"status": ["31094502"]}},  # лише Open: Forthcoming ще не приймає заявки
         {"term": {"programmePeriod": "2021 - 2027"}},
     ]}}
     results = []
@@ -4254,7 +4259,7 @@ def run_eu_funding_portal(posted_links: set, posted_titles: set, posted_keywords
                 EU_PORTAL_SEARCH_URL,
                 params={"apiKey": "SEDIA", "text": "***", "pageSize": 100, "pageNumber": page},
                 files={"query": (None, json.dumps(query), "application/json"),
-                       "sort": (None, json.dumps({"order": "DESC", "field": "startDate"}), "application/json"),
+                       "sort": (None, json.dumps({"order": "ASC", "field": "deadlineDate"}), "application/json"),
                        "languages": (None, json.dumps(["en"]), "application/json")},
                 timeout=60, headers={"User-Agent": "Mozilla/5.0"})
             if r.status_code != 200:
@@ -4288,7 +4293,8 @@ def run_eu_funding_portal(posted_links: set, posted_titles: set, posted_keywords
             break
         title = (_eu_portal_value(meta, "title") or res.get("title") or res.get("summary") or ident)
         title = re.sub(r"<[^>]+>", "", str(title)).strip()
-        if is_excluded(title):
+        if is_excluded(title) or (_EU_NON_UA_REGION_RE.search(title) and not _EU_UA_OK_RE.search(title)):
+            print(f"[EU Portal] пропущено (регіон не для України): {title[:90]}")
             save_posted_link(link)
             posted_links.add(link)
             continue
@@ -4305,6 +4311,7 @@ def run_eu_funding_portal(posted_links: set, posted_titles: set, posted_keywords
         budget = _eu_portal_value(meta, "budgetOverview")
         if budget:
             facts.append("Бюджет (за даними порталу): " + re.sub(r"<[^>]+>", " ", budget)[:300] + ".")
+        facts.append("Увага: не стверджуй, що Україна має право на участь, якщо цього прямо немає в тексті нижче.")
         description = " ".join(facts) + "\n\n" + (desc or title)
         processed += 1
         try:
