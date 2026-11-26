@@ -4213,21 +4213,22 @@ DONOR_MAX_PER_RUN = 4
 DONOR_MAX_PER_DONOR = 2
 DONOR_PAGES = [
     # (назва, сторінка зі списком, мітка, маска URL деталі (regex))
-    ("Український інститут", "https://ui.org.ua/en/", r"open-call|grant|programme|opportunit"),
-    ("Представництво ЄС в Україні", "https://www.eeas.europa.eu/delegations/ukraine/news_en", r"call|proposal|funding|grant"),
-    ("Рада Європи — Київ", "https://www.coe.int/en/web/kyiv/call-for-proposals-grants", r"call|grant|proposal|tender"),
+    ("Український інститут", "https://ui.org.ua/en/", r"open-call"),
     ("Вишеградський фонд", "https://www.visegradfund.org/apply/grants/", r"/apply/grants/[\w\-]+|/apply/"),
     ("EEA & Norway Grants", "https://eeagrants.org/archive?type=open-call", r"/open-call|/archive/"),
     ("NED", "https://www.ned.org/apply-for-grant/", r"grant|apply|funding"),
     ("UNDEF", "https://www.un.org/democracyfund/en/apply-for-funding", r"apply|funding|call"),
     ("EU Neighbours East", "https://euneighbourseast.eu/opportunities/", r"/opportunit|/news/|call|grant"),
     ("British Council Ukraine", "https://www.britishcouncil.org.ua/en/programmes/", r"programme|grant|call|fund"),
-    ("Goethe-Institut Ukraine", "https://www.goethe.de/ins/ua/uk/kul/foe.html", r"foe|foerder|grant|call|fund"),
 ]
 # Топіки порталу, адресовані іншим регіонам світу: для України не підходять.
 _EU_NON_UA_REGION_RE = re.compile(
     r"africa|mediterranean|maghreb|middle east|gulf|asia|pacific|caribbean|latin america|"
     r"western balkans|sub-saharan|indo-pacific|\bacp\b|south[- ]east|central america|andean", re.IGNORECASE)
+# Не конкурси для НУО: хартії, акредитації, експерти, закупівлі.
+_EU_NOT_CALL_RE = re.compile(
+    r"charter|accreditation|quality label|expert|evaluator|procurement|tender|"
+    r"films on the move|mini-slate|label\b", re.IGNORECASE)
 _EU_UA_OK_RE = re.compile(r"ukrain|eastern partnership|neighbourhood east|eastern neighbour", re.IGNORECASE)
 _DONOR_ANCHOR_RE = re.compile(
     r"call for|open call|grant|funding|apply|application|proposal|fellowship|scholarship|"
@@ -4293,6 +4294,11 @@ def run_eu_funding_portal(posted_links: set, posted_titles: set, posted_keywords
             break
         title = (_eu_portal_value(meta, "title") or res.get("title") or res.get("summary") or ident)
         title = re.sub(r"<[^>]+>", "", str(title)).strip()
+        dl_pre = _eu_portal_value(meta, "deadlineDate")
+        if _EU_NOT_CALL_RE.search(title) or (dl_pre and is_deadline_passed(dl_pre[:10])):
+            save_posted_link(link)
+            posted_links.add(link)
+            continue
         if is_excluded(title) or (_EU_NON_UA_REGION_RE.search(title) and not _EU_UA_OK_RE.search(title)):
             print(f"[EU Portal] пропущено (регіон не для України): {title[:90]}")
             save_posted_link(link)
