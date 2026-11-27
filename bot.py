@@ -219,7 +219,7 @@ KNOWN_AGGREGATOR_DOMAINS = ("grant-radar.app", "grantradar.com.ua", "scientifyre
                             "wooloo.org", "xhbt.org", "artdeadline.com", "transartists.org", "onthemove.org", "resartis.org",
                             "artistcommunities.org", "mushrooming.fi", "jobleads.com", "jobindex.dk", "jobs.ac.uk", "academictransfer.com", "jobbnorge.no", "jooble.org", "indeed.com", "glassdoor.com",
                             "findaphd.com", "academicpositions.com", "scholarshipdb.net", "scholarshipportal.com", "opencallartist.com", "callforentry.org", "streamlyne", "opportunitytracker", "h-net.org", "triple-funds", "opportunitydesk",
-                            "scholars4dev", "youthop", "opportunitiesforafricans", "afterschoolafrica")
+                            "scholars4dev", "youthop", "opportunitiesforafricans", "afterschoolafrica", "recursosculturales")
 
 # ---------------------------------------------------------------------------
 # ФІЛЬТРИ
@@ -4254,7 +4254,7 @@ def run_eu_funding_portal(posted_links: set, posted_titles: set, posted_keywords
         {"term": {"programmePeriod": "2021 - 2027"}},
     ]}}
     results = []
-    for page in (1, 2):
+    for page in range(1, 7):
         try:
             r = requests.post(
                 EU_PORTAL_SEARCH_URL,
