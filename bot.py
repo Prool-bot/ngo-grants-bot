@@ -4238,6 +4238,21 @@ _EU_NON_UA_REGION_RE = re.compile(
 _EU_NOT_CALL_RE = re.compile(
     r"charter|accreditation|quality label|expert|evaluator|procurement|tender|"
     r"films on the move|mini-slate|label\b", re.IGNORECASE)
+# Програми, до яких Україна асоційована (її організації подаються нарівні з ЄС):
+# Creative Europe, MSCA (Horizon Europe), CERV. В інших (LIFE, ESC, Erasmus+ поза
+# capacity building) публікуємо лише коли Україна прямо названа в тексті топіка.
+_EU_UA_ASSOCIATED_PREFIXES = ("CREA", "EUROPE-CREATIVE", "MSCA", "CERV")
+
+
+def _eu_portal_ukraine_ok(ident: str, text: str) -> bool:
+    up = ident.upper()
+    if up.startswith(_EU_UA_ASSOCIATED_PREFIXES):
+        return True
+    if re.search(r"ukrain", text, re.IGNORECASE):
+        return True
+    return up.startswith("ERASMUS") and "-CB-" in up  # capacity building: відкрито для країн-партнерів
+
+
 _EU_UA_OK_RE = re.compile(r"ukrain|eastern partnership|neighbourhood east|eastern neighbour", re.IGNORECASE)
 _DONOR_ANCHOR_RE = re.compile(
     r"call for|open call|grant|funding|apply|application|proposal|fellowship|scholarship|"
@@ -4316,6 +4331,11 @@ def run_eu_funding_portal(posted_links: set, posted_titles: set, posted_keywords
         desc_raw = (_eu_portal_value(meta, "descriptionByte") or _eu_portal_value(meta, "description")
                     or _eu_portal_value(meta, "destinationDescription") or res.get("content") or "")
         desc = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html.unescape(str(desc_raw)))).strip()[:2500]
+        if not _eu_portal_ukraine_ok(ident, title + " " + desc):
+            print(f"[EU Portal] пропущено (участь України не підтверджена): {ident} — {title[:80]}")
+            save_posted_link(link)
+            posted_links.add(link)
+            continue
         if len(desc) < 250:
             # Без змісту (хто може подаватись, що фінансується) допис вийде
             # розпливчастим — пропускаємо, як і заголовок без опису.
