@@ -4214,8 +4214,10 @@ EU_PORTAL_TOPIC_URL = ("https://ec.europa.eu/info/funding-tenders/opportunities/
                        "portal/screen/opportunities/topic-details/")
 EU_PORTAL_MAX_PER_RUN = 4
 # Програми, релевантні для НУО/культури/освіти/молоді (префікс identifier).
-EU_PORTAL_PROGRAMMES = ("ERASMUS", "CREA", "CERV", "LIFE", "MSCA", "ESC", "EUROPE-CREATIVE",
-                        "DIGITAL", "HORIZON-CL2", "EUAF", "AMIF", "UCPM")
+# Лише програми, де заявниками реально бувають НУО/митці/молодь/школи.
+# DIGITAL, Horizon-кластери, AMIF, UCPM — переважно консорціуми університетів
+# і компаній зі складними умовами: розпливчастий допис з них шкодить.
+EU_PORTAL_PROGRAMMES = ("ERASMUS", "CREA", "CERV", "LIFE", "MSCA", "ESC", "EUROPE-CREATIVE")
 DONOR_MAX_PER_RUN = 4
 DONOR_MAX_PER_DONOR = 2
 DONOR_PAGES = [
@@ -4314,6 +4316,13 @@ def run_eu_funding_portal(posted_links: set, posted_titles: set, posted_keywords
         desc_raw = (_eu_portal_value(meta, "descriptionByte") or _eu_portal_value(meta, "description")
                     or _eu_portal_value(meta, "destinationDescription") or res.get("content") or "")
         desc = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html.unescape(str(desc_raw)))).strip()[:2500]
+        if len(desc) < 250:
+            # Без змісту (хто може подаватись, що фінансується) допис вийде
+            # розпливчастим — пропускаємо, як і заголовок без опису.
+            print(f"[EU Portal] пропущено (опис закороткий, {len(desc)} симв.): {title[:90]}")
+            save_posted_link(link)
+            posted_links.add(link)
+            continue
         facts = [f"Ідентифікатор топіка: {ident}."]
         dl = _eu_portal_value(meta, "deadlineDate")
         if dl:
