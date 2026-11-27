@@ -1202,6 +1202,20 @@ def is_likely_country_restricted(text: str) -> bool:
     return any(re.search(p, text, re.IGNORECASE) for p in COUNTRY_RESTRICTED_PATTERNS)
 
 
+# Програми національних урядових відомств (MHRA/NICE, NIH, Grants.gov, ...) майже
+# завжди обмежені своєю країною, навіть коли в тексті є «міжнародні організації».
+_NATIONAL_GOV_HOST_RE = re.compile(
+    r"(?:^|\.)(?:gov\.uk|nhs\.uk|gov\.au|gc\.ca|canada\.ca|gov\.ie|gov\.in|gov\.za|"
+    r"grants\.gov|nih\.gov|nsf\.gov|ed\.gov|usda\.gov|hhs\.gov)$", re.IGNORECASE)
+
+
+def is_national_gov_url(url: str) -> bool:
+    try:
+        return bool(_NATIONAL_GOV_HOST_RE.search(urlparse(url).netloc.lower().split(":")[0]))
+    except Exception:
+        return False
+
+
 def _squeeze(s: str) -> str:
     return re.sub(r"[^\w]+", "", s.lower())
 
@@ -1280,6 +1294,11 @@ def build_and_send(emoji: str, title: str, link: str, description: str,
 
     if is_ai_chat_share_url(link):
         print(f"[{source_label}] Skipped (посилання на ШІ-чат, не на першоджерело): {title[:60]}")
+        return _SkippedIrrelevant()
+
+    if (strict_fallback and is_national_gov_url(link)
+            and not re.search(r"\bUkrain|Україн", f"{title} {description}", re.IGNORECASE)):
+        print(f"[{source_label}] Skipped (національне урядове відомство без згадки України): {title[:60]}")
         return _SkippedIrrelevant()
 
     if strict_fallback and not source_label.startswith("Google Alerts:") and is_likely_country_restricted(f"{title} {description}"):
