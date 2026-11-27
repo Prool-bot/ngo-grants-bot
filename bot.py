@@ -80,6 +80,7 @@ _ai_wait_spent = 0.0
 # Groq про списання compound-mini 21.09.2026. Замінено на окремий
 # пошуковий API Tavily (TAVILY_API_KEY) — див. run_ai_discovery.
 AI_DISCOVERY_STATE_FILE = "last_ai_discovery.txt"
+AI_DISCOVERY_MAX_PER_RUN = 30  # кандидатів, що доходять до AI за добовий запуск
 
 # Щойно один виклик Groq повертає 429 з довгим Retry-After (ознака
 # вичерпаної ДЕННОЇ квоти, не короткого RPM-сплеску) — цей прапорець
@@ -4434,9 +4435,37 @@ def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: lis
         "довкілля клімат екологія environmental grant program 2026",
         "соціальне підприємництво інновації грант 2026",
         "права людини гендер грант funding 2026",
+        # Розширення охоплення: Україна-специфічні теми, події/навчання,
+        # стипендії, донорські програми. Пошуковий ліміт (TinyFish 12 000/добу)
+        # використовується на ~1%, тож запитів можна значно більше.
+        "відкритий конкурс грантів для українських ГО подати заявку до 2027",
+        "грант для ветеранів та ветеранських організацій конкурс 2027",
+        "грант для ВПО та громад відновлення конкурс заявок 2027",
+        "грант освітні проєкти вчителі школи Україна конкурс 2027",
+        "грант культурні проєкти Україна відкритий конкурс заявок 2027",
+        "міжнародна стипендія для українців подати заявку 2027",
+        "конкурс для українських журналістів медіа програма 2027",
+        "гранти для жінок підприємниць Україна 2027",
+        "мікрогранти для ініціатив громад Україна 2027",
+        "грант аграрії фермери мале підприємство Україна 2027",
+        "цифрові інновації стартапи грант акселератор Україна 2027",
+        "безкоштовний тренінг навчальна програма для українців подати заявку 2027",
+        "хакатон конкурс для українців міжнародний 2027",
+        "резиденція для митців з України open call 2027",
+        "fellowship for Ukrainian researchers scholars apply 2027",
+        "call for proposals Ukraine civil society organisations 2027",
+        "grant for Ukrainian NGOs apply deadline 2027",
+        "funding for Ukrainian artists cultural workers open call 2027",
+        "scholarship for Ukrainian students apply 2027",
+        "Erasmus+ Creative Europe CERV call organisations Ukraine 2027",
+        "Visegrad Fund Norway Grants Nordic open call Ukraine 2027",
+        "open call NGOs eligible all countries Ukraine 2027",
+        "психосоціальна підтримка ментальне здоров'я грант НУО Україна 2027",
+        "інклюзія люди з інвалідністю грант проєкт Україна 2027",
+        "спорт молодіжні ініціативи грант Україна 2027",
     ]
 
-    items = []
+    per_query = []
     any_search_ok = False
     for q in queries:
         results, performed = web_search(q, purpose="discovery")
@@ -4444,17 +4473,28 @@ def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: lis
             print("[AI-пошук] Жоден безкоштовний пошуковий сервіс зараз недоступний; решту запитів відкладено")
             break
         any_search_ok = True
-        for r in results:
-            if r["title"] and r["url"]:
-                items.append({"title": r["title"], "url": r["url"]})
+        per_query.append([{"title": r["title"], "url": r["url"]}
+                          for r in results if r["title"] and r["url"]])
+    # Round-robin між запитами + дедуп за URL: ліміт на обробку нижче не
+    # віддає перевагу перших запитів списку.
+    items, seen_urls = [], set()
+    for rank in range(max((len(x) for x in per_query), default=0)):
+        for res in per_query:
+            if rank < len(res) and res[rank]["url"] not in seen_urls:
+                seen_urls.add(res[rank]["url"])
+                items.append(res[rank])
 
     print(f"[AI-пошук] Пошук повернув {len(items)} кандидатів по {len(queries)} запитах")
     if any_search_ok:
         _mark_ai_discovery_ran()
 
+    processed_discovery = 0
     for item in items:
         if _ai_quota_exhausted_this_run:
             print("[AI-пошук] Квота Groq вичерпана — решту кандидатів не обробляю")
+            break
+        if processed_discovery >= AI_DISCOVERY_MAX_PER_RUN:
+            print(f"[AI-пошук] Ліміт {AI_DISCOVERY_MAX_PER_RUN} кандидатів за прогін — решта наступного дня")
             break
         title = (item.get("title") or "").strip()
         link = (item.get("url") or "").strip()
@@ -4462,6 +4502,7 @@ def run_ai_discovery(posted_links: set, posted_titles: set, posted_keywords: lis
             continue
         if is_excluded(title):
             continue
+        processed_discovery += 1
         print(f"[AI-пошук] Processing: {title[:60]}")
         try:
             page = fetch_html(link)
