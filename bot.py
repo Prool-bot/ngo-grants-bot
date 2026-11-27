@@ -173,6 +173,12 @@ GOOGLE_ALERT_FEEDS = [
     "https://www.google.com/alerts/feeds/15035947245000581047/18066391633318553626",  # 8. Соціальне підприємництво / інновації
     "https://www.google.com/alerts/feeds/15035947245000581047/18066391633318552685",  # 9. Права людини й гендер
     "https://www.google.com/alerts/feeds/15035947245000581047/10689678761986908766",  # 10. Гуманітарна допомога / ВПО
+    "https://www.google.com/alerts/feeds/15035947245000581047/5411987023601318510",  # 11. Гранти/конкурси для українських ГО
+    "https://www.google.com/alerts/feeds/15035947245000581047/3181451889615251813",  # 12. Ветерани
+    "https://www.google.com/alerts/feeds/15035947245000581047/12861483810968747164",  # 13. Open call Ukraine/NGOs/civil society
+    "https://www.google.com/alerts/feeds/15035947245000581047/12721037873752129982",  # 14. Стипендії й fellowship для українців
+    "https://www.google.com/alerts/feeds/15035947245000581047/14953641420869662780",  # 15. Тренінги/хакатони/резиденції для українців
+    "https://www.google.com/alerts/feeds/15035947245000581047/9563162082275143283",  # 16. ЄС-фонди (Erasmus+/Creative Europe/CERV/Visegrad) для України
 ]
 
 # Міжнародний агрегатор стипендій/стажувань/фелоушипів/конференцій —
