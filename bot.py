@@ -80,7 +80,7 @@ _ai_wait_spent = 0.0
 # Groq про списання compound-mini 21.09.2026. Замінено на окремий
 # пошуковий API Tavily (TAVILY_API_KEY) — див. run_ai_discovery.
 AI_DISCOVERY_STATE_FILE = "last_ai_discovery.txt"
-AI_DISCOVERY_MAX_PER_RUN = 30  # кандидатів, що доходять до AI за добовий запуск
+AI_DISCOVERY_MAX_PER_RUN = 60  # кандидатів, що доходять до AI за добовий запуск
 
 # Щойно один виклик Groq повертає 429 з довгим Retry-After (ознака
 # вичерпаної ДЕННОЇ квоти, не короткого RPM-сплеску) — цей прапорець
@@ -214,7 +214,7 @@ MONITOR_WOLYNSKI_URL = "https://monitorwolynski.com/uk/categories/konkursy"
 GRANTHUB_LIST_URL = "https://granthub.org.ua/granty"
 CASCADE_BASE = "https://cascadefunding.eu"
 CASCADE_LIST_URL = CASCADE_BASE + "/open-calls/"
-CASCADE_MAX_PER_RUN = 6  # щоб не з'їсти AI-квоту, якщо в архіві сайту сотні закритих конкурсів
+CASCADE_MAX_PER_RUN = 10  # щоб не з'їсти AI-квоту, якщо в архіві сайту сотні закритих конкурсів
 
 # Сайти-агрегатори/блоги можливостей, які САМІ НЕ Є першоджерелом — вони
 # лише переказують і посилаються на офіційну сторінку донора/фонду.
@@ -675,14 +675,14 @@ AI_SYSTEM_PROMPT = """Ти редактор Telegram-каналу про гра�
 - Кожен факт (дедлайн, сума, аудиторія, посилання) — РІВНО в одне поле, один раз; не дублюй у intro/notes.
 - intro: 2-3 речення (хто/що/навіщо); без дедлайну, суми, вимог, посилань і без сирого тексту джерела.
 - Прибери декоративні емодзі оригіналу. emoji — ОДИН тематичний (🔐 безпека, 🌱 екологія, ✍️ журналістика, 📸 фото, 🎓 освіта, 🎨 мистецтво, 💻 технології, ⚖️ права людини, 💼 бізнес, 🏥 здоров'я, 🕊️ мир тощо).
-- МОВА: усі текстові поля українською (перекладай), англійською лишай лише власні назви й усталені терміни. Без markdown.
+- МОВА: слова «особові» не вживай: пиши «особи», «фізичні особи». Усі текстові поля українською (перекладай), англійською лишай лише власні назви й усталені терміни. Без markdown.
 - Списки (funding, audience, supported, eligible_categories, evaluation_criteria, application_requirements, priorities, key_conditions): короткі пункти без «•» і крапки, до 8 пунктів.
 
 ПОЛЯ
-- geography: звідки можуть подаватись заявники (не місце проведення). Без явного обмеження громадянства/резидентства — «весь світ».
-- ukraine_eligible=false ТІЛЬКИ коли можливість явно обмежена однією країною/регіоном, що виключає Україну («лише для Кенії»). Глобальні, ті де Україна названа, і програми з Україною як асоційованою країною (Horizon Europe, Erasmus+, Creative Europe, COSME тощо) — true. У сумніві — true.
-- ukraine_relevance: 1-2 речення, кому в Україні це підходить і чому. Заповнюй, коли geography «весь світ» або Україна названа; null лише коли явно виключає Україну.
-- deadline: повний (дата + година + часовий пояс, якщо є). decision_date: коли оголосять результати. duration: тривалість проєкту після отримання (не дедлайн).
+- geography: звідки можуть подаватись заявники (не місце проведення). Без явного обмеження громадянства/резидентства — «весь світ». Лише назви країн/регіонів, без пояснень у дужках і без уточнень про контекст проєкту.
+- ukraine_eligible=false коли можливість явно обмежена однією країною/регіоном, що виключає Україну («лише для Кенії»), або заявник має бути зареєстрований/працювати в одній іншій країні (програма національного уряду, регуляторний sandbox однієї країни). Глобальні, ті де Україна названа, і програми з Україною як асоційованою країною (Horizon Europe, Erasmus+, Creative Europe, COSME тощо) — true. У сумніві — true.
+- ukraine_relevance: 1-2 речення, кому в Україні це підходить і чому. Не вигадуй шаблонних «можливостей для України» і не пиши «якщо Україна має право»: лише конкретні факти з тексту, інакше null. Заповнюй, коли geography «весь світ» або Україна названа; null лише коли явно виключає Україну.
+- deadline: повний (дата + година + часовий пояс, якщо є); місяці словами українською («5 грудня 2026»), не у форматі 2026-12-05. decision_date: коли оголосять результати. duration: тривалість проєкту після отримання (не дедлайн).
 - funding: скільки/що дають переможцю. application_fee: вступний внесок за подачу (сума, валюта, fee waiver); null якщо безкоштовно/не згадано.
 - audience: хто може подаватись; audience_excluded: хто не може.
 - supported: на що можна витратити кошти. eligible_categories: які типи робіт/дисципліни/жанри приймають (не плутати із supported).
@@ -3707,7 +3707,7 @@ def search_source(title: str):
     return url, label, snippet, True
 
 
-TG_SEARCH_MAX_PER_RUN = int(os.environ.get("TG_SEARCH_MAX_PER_RUN", "6"))
+TG_SEARCH_MAX_PER_RUN = int(os.environ.get("TG_SEARCH_MAX_PER_RUN", "12"))
 _tg_search_used = 0
 
 
@@ -4232,14 +4232,14 @@ def _mark_ai_discovery_ran() -> None:
 EU_PORTAL_SEARCH_URL = "https://api.tech.ec.europa.eu/search-api/prod/rest/search"
 EU_PORTAL_TOPIC_URL = ("https://ec.europa.eu/info/funding-tenders/opportunities/"
                        "portal/screen/opportunities/topic-details/")
-EU_PORTAL_MAX_PER_RUN = 4
+EU_PORTAL_MAX_PER_RUN = 8
 # Програми, релевантні для НУО/культури/освіти/молоді (префікс identifier).
 # Лише програми, де заявниками реально бувають НУО/митці/молодь/школи.
 # DIGITAL, Horizon-кластери, AMIF, UCPM — переважно консорціуми університетів
 # і компаній зі складними умовами: розпливчастий допис з них шкодить.
 EU_PORTAL_PROGRAMMES = ("ERASMUS", "CREA", "CERV", "LIFE", "MSCA", "ESC", "EUROPE-CREATIVE")
-DONOR_MAX_PER_RUN = 4
-DONOR_MAX_PER_DONOR = 2
+DONOR_MAX_PER_RUN = 10
+DONOR_MAX_PER_DONOR = 3
 DONOR_PAGES = [
     # (назва, сторінка зі списком, мітка, маска URL деталі (regex))
     ("Український інститут", "https://ui.org.ua/en/", r"open-call"),
@@ -4249,6 +4249,15 @@ DONOR_PAGES = [
     ("UNDEF", "https://www.un.org/democracyfund/en/apply-for-funding", r"apply|funding|call"),
     ("EU Neighbours East", "https://euneighbourseast.eu/opportunities/", r"/opportunit|/news/|call|grant"),
     ("British Council Ukraine", "https://www.britishcouncil.org.ua/en/programmes/", r"programme|grant|call|fund"),
+    ("UN Women (Європа і Центральна Азія)", "https://eca.unwomen.org/en/programme-implementation", r"/programme-implementation/\d{4}/"),
+    ("UN Women Ukraine", "https://ukraine.unwomen.org/en/stories/oholoshennya", r"/stories/(oholoshennya|novyny)/"),
+    ("IOM Ukraine", "https://ukraine.iom.int/", r"call|apply|grant|partner|invites|application"),
+    ("Рада Європи — Київ", "https://www.coe.int/uk/web/kyiv/-/call-for-proposals-grants", None),
+    # pattern=None: сама сторінка є оголошенням/програмою з постійним прийомом
+    ("Вишеградський фонд — Visegrad Grants", "https://www.visegradfund.org/visegrad-grants-apply", None),
+    ("Вишеградський фонд — Visegrad+ Grants", "https://www.visegradfund.org/visegrad-plus-grants-apply", None),
+    ("Вишеградський фонд — Strategic Grants", "https://www.visegradfund.org/strategic-grants-apply", None),
+    ("Фонд польської науки — FOR UKRAINE", "https://bip.fnp.org.pl/component/fnp_programs/program/for-ukraine", None),
 ]
 # Топіки порталу, адресовані іншим регіонам світу: для України не підходять.
 _EU_NON_UA_REGION_RE = re.compile(
@@ -4356,7 +4365,7 @@ def run_eu_funding_portal(posted_links: set, posted_titles: set, posted_keywords
             save_posted_link(link)
             posted_links.add(link)
             continue
-        if len(desc) < 250:
+        if len(desc) < 40 and len(title) < 40:
             # Без змісту (хто може подаватись, що фінансується) допис вийде
             # розпливчастим — пропускаємо, як і заголовок без опису.
             print(f"[EU Portal] пропущено (опис закороткий, {len(desc)} симв.): {title[:90]}")
@@ -4402,20 +4411,24 @@ def run_donor_pages(posted_links: set, posted_titles: set, posted_keywords: list
     for donor, list_url, pattern in DONOR_PAGES:
         if processed >= DONOR_MAX_PER_RUN:
             break
-        page = fetch_html(list_url)
-        if not page:
-            print(f"[Donors] {donor}: сторінку не отримано ({list_url})")
-            continue
-        host = urlparse(list_url).netloc.replace("www.", "")
         cands, seen = [], set()
-        for a in page.find_all("a", href=True):
+        if pattern is None:
+            cands = [(donor, clean_tracking_params(list_url))]
+            page = None
+        else:
+            page = fetch_html(list_url)
+            if not page:
+                print(f"[Donors] {donor}: сторінку не отримано ({list_url})")
+                continue
+        host = urlparse(list_url).netloc.replace("www.", "")
+        for a in (page.find_all("a", href=True) if page else []):
             text = a.get_text(" ", strip=True)
             href = urljoin(list_url, a["href"]).split("#")[0]
             if href in seen or not href.startswith("http") or href.rstrip("/") == list_url.rstrip("/"):
                 continue
             if urlparse(href).netloc.replace("www.", "") != host:
                 continue
-            if len(text) < 15 or not _DONOR_ANCHOR_RE.search(text):
+            if len(text) < 12 or not _DONOR_ANCHOR_RE.search(text):
                 continue
             if not re.search(pattern, href, re.IGNORECASE):
                 continue
